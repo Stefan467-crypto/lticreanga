@@ -1,4 +1,4 @@
-export const CLOUDINARY = { cloud: "", preset: "" }; // unsigned upload preset
+export const CLOUDINARY = { cloud: "dp1y1xv5l", preset: "Lticreanga" }; // unsigned upload preset
 export const CATALOG_URL = "https://example.com/catalog";
 export const CATS = ["Sărbători", "Examene/BAC/Teze", "Concursuri & Olimpiade", "General"];
 export const CLASSES = ["V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
