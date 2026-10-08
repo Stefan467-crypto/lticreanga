@@ -1,0 +1,21 @@
+name: Dezarhiveaza site
+on:
+  push:
+    paths: ['scoala-site.zip']
+permissions:
+  contents: write
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          rm -f echipa.html anunturi.html calendar.html js/app.js js/index.js js/anunturi.js js/calendar.js js/lista.js js/materie.js js/pagina.js js/feedback.js js/bells.js
+          unzip -o scoala-site.zip -d .
+          rm scoala-site.zip
+      - run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add -A
+          git commit -m "Actualizare site" || exit 0
+          git push
