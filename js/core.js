@@ -7,7 +7,11 @@ export { db };
 export const $ = (s, r = document) => r.querySelector(s);
 export const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const safeUrl = u => /^https?:\/\//i.test(u) ? u : "#";
-export function toast(m) { let t = $("#toast"); if (!t) { t = document.body.appendChild(document.createElement("div")); t.id = "toast"; } t.textContent = m; t.hidden = false; clearTimeout(t._t); t._t = setTimeout(() => t.hidden = true, 3000); }
+export function toast(m) {
+  let t = $("#toast"); if (!t) { t = document.body.appendChild(document.createElement("div")); t.id = "toast"; t.setAttribute("popover", "manual"); t.setAttribute("role", "status"); }
+  t.textContent = m; t.hidden = false; try { t.hidePopover(); } catch (e) { } try { t.showPopover(); } catch (e) { }
+  clearTimeout(t._t); t._t = setTimeout(() => { try { t.hidePopover(); } catch (e) { } t.hidden = true; }, 3200);
+}
 export async function upload(file) {
   if (!CLOUDINARY.cloud) throw new Error("Cloudinary nu este configurat în js/config.js");
   const f = new FormData(); f.append("file", file); f.append("upload_preset", CLOUDINARY.preset);
@@ -15,6 +19,8 @@ export async function upload(file) {
   if (!r.ok) throw new Error("Încărcarea a eșuat"); return (await r.json()).secure_url;
 }
 /* meniu */
+const hd = $(".hd");
+if (document.body.classList.contains("home")) { const f = () => hd.classList.toggle("solid", scrollY > 40); f(); addEventListener("scroll", f, { passive: true }); }
 const dr = $("#drawer"), bg = $("#burger");
 function openD(o) { dr.classList.toggle("open", o); dr.inert = !o; bg.setAttribute("aria-expanded", o); document.documentElement.classList.toggle("lock", o); (o ? $("#closeD") : bg).focus(); }
 dr.inert = true; bg.onclick = () => openD(true); $("#closeD").onclick = $(".scrim", dr).onclick = () => openD(false);
@@ -41,16 +47,21 @@ onAuthStateChanged(auth, async u => {
 /* modal + butoane + / ✎ */
 const X = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 const PEN = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
-export function modal(title, body, onSubmit, btn = "Salvează") {
+function dlg(title, inner) {
   const d = document.body.appendChild(document.createElement("dialog")); d.className = "modal";
-  d.innerHTML = `<div class="mt"><h3>${esc(title)}</h3><button type="button" class="ib x" aria-label="Închide">${X}</button></div><form>${body}<button class="btn">${btn}</button></form>`;
-  const f = d.querySelector("form"); d.querySelector(".x").onclick = () => d.close(); d.onclose = () => d.remove();
-  d.onclick = e => { if (e.target === d) d.close(); };
-  f.onsubmit = async e => { e.preventDefault(); const b = f.querySelector(".btn"); b.disabled = true; try { await onSubmit(f); d.close(); } catch (err) { toast(err.message); b.disabled = false; } };
+  d.innerHTML = `<div class="mt"><h3>${esc(title)}</h3><button type="button" class="ib x" aria-label="Închide">${X}</button></div>${inner}`;
+  d.querySelector(".x").onclick = () => d.close(); d.onclose = () => d.remove(); d.onclick = e => { if (e.target === d) d.close(); };
   d.showModal(); return d;
 }
+export const sheet = (title, body) => dlg(title, `<div class="sb">${body}</div>`);
+export function modal(title, body, onSubmit, btn = "Salvează") {
+  const d = dlg(title, `<form>${body}<button class="btn">${btn}</button></form>`), f = d.querySelector("form");
+  f.onsubmit = async e => { e.preventDefault(); const b = f.querySelector(".btn"); b.disabled = true; try { await onSubmit(f); d.close(); } catch (err) { toast(err.message); b.disabled = false; } };
+  return d;
+}
+document.querySelectorAll("[data-feedback]").forEach(b => b.onclick = () => modal("Feedback", '<label>Nume (opțional)<input name="n"></label><label>Mesaj<textarea name="t" rows="4" required></textarea></label>', async f => { await addDoc(collection(db, "feedback"), { n: f.elements.n.value, t: f.elements.t.value, d: new Date().toISOString() }); toast("Mulțumim pentru mesaj!"); }, "Trimite"));
 export function plusBtn(el, label, fn, pen) {
-  const h = el.previousElementSibling, host = h && h.classList.contains("sec") ? h : el.parentNode, b = document.createElement("button");
+  const h = el.previousElementSibling, host = h && (h.classList.contains("sec") || h.classList.contains("shd")) ? h : el.parentNode, b = document.createElement("button");
   b.type = "button"; b.className = "plus"; b.title = label; b.setAttribute("aria-label", label); b.innerHTML = pen ? PEN : "+"; b.onclick = fn; host.append(b);
 }
 /* texte editabile: <el data-slug="x"> */
@@ -65,18 +76,18 @@ async function textBlock(el) {
 }
 /* liste editabile: <el data-col data-fields="cheie:Etichetă,..." data-img="1" data-max="3"> */
 function listBlock(el) {
-  const col = el.dataset.col, F = el.dataset.fields.split(",").map(f => f.split(":")), max = +el.dataset.max || 99;
+  const col = el.dataset.col, F = el.dataset.fields.split(",").map(f => f.split(":")), max = +el.dataset.max || 99, K = el.dataset.img ? "img" : el.dataset.file ? "url" : "";
   const out = el.appendChild(document.createElement("div")); out.className = "grid";
   const load = async () => {
     const l = (await getDocs(collection(db, col))).docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, max);
-    out.innerHTML = l.map(x => `<article class="card pc">${x.img ? `<img loading="lazy" alt="" src="${esc(safeUrl(x.img))}">` : ""}<h3>${esc(x[F[0][0]])}</h3>${F.slice(1).map(([k]) => x[k] ? `<p>${esc(x[k])}</p>` : "").join("")}${role !== "vizitator" ? `<button class="btn o s" data-id="${x.id}">Șterge</button>` : ""}</article>`).join("") || '<p class="tag">Nu sunt înregistrări.</p>';
+    out.innerHTML = l.map(x => `<article class="card pc">${x.img ? `<img loading="lazy" alt="" src="${esc(safeUrl(x.img))}">` : ""}<h3>${esc(x[F[0][0]])}</h3>${F.slice(1).map(([k]) => x[k] ? `<p>${esc(x[k])}</p>` : "").join("")}${x.url ? `<a class="btn s" href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener">Deschide</a> ` : ""}${role !== "vizitator" ? `<button class="btn o s" data-id="${x.id}">Șterge</button>` : ""}</article>`).join("") || '<p class="tag">Nu sunt înregistrări.</p>';
   };
   out.onclick = async e => { const id = e.target.dataset.id; if (id && confirm("Ștergi?")) { await deleteDoc(doc(db, col, id)); load(); } };
   whenRole(r => {
     load().catch(() => out.innerHTML = '<p class="tag">Conținutul nu poate fi încărcat.</p>');
-    if (r !== "vizitator") plusBtn(el, "Adaugă", () => modal("Adaugă", '<div class="grid">' + F.map(([k, l], i) => `<label>${l}<input name="${k}" ${i ? "" : "required"}></label>`).join("") + (el.dataset.img ? '<label>Imagine<input name="_f" type="file" accept="image/*"></label>' : "") + "</div>", async f => {
+    if (r !== "vizitator") plusBtn(el, "Adaugă", () => modal("Adaugă", '<div class="grid">' + F.map(([k, l], i) => `<label>${l}<input name="${k}" ${i ? "" : "required"}></label>`).join("") + (K ? `<label>${K === "img" ? "Imagine" : "Fișier"}<input name="_f" type="file" ${K === "img" ? 'accept="image/*"' : "required"}></label>` : "") + "</div>", async f => {
       const E = f.elements, v = { ts: Date.now() }; F.forEach(([k]) => v[k] = E[k].value.trim());
-      const file = el.dataset.img && E._f.files[0]; if (file) v.img = await upload(file);
+      const file = K && E._f.files[0]; if (file) v[K] = await upload(file);
       await addDoc(collection(db, col), v); toast("Adăugat"); load();
     }));
   });

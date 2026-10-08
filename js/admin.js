@@ -13,4 +13,4 @@ $("#form").onsubmit = async e => {
 };
 $("#users").onchange = async e => { const id = e.target.dataset.role; if (id) { await updateDoc(doc(db, "users", id), { role: e.target.value }); toast("Rol actualizat"); } };
 document.addEventListener("click", async e => { const b = e.target.closest("[data-del]"); if (!b || !confirm("Ștergi?")) return; const [c, id] = b.dataset.del.split("/"); await deleteDoc(doc(db, c, id)); c === "feedback" ? fb() : users(); });
-whenRole(r => { $("#deny").hidden = r !== "vizitator"; $("#panel").hidden = r === "vizitator"; if (r !== "vizitator") { fb(); if (r === "admin") users(); } });
+whenRole(r => { const ok = r === "admin"; $("#deny").hidden = ok; $("#panel").hidden = !ok; if (ok) { fb(); users(); } });
