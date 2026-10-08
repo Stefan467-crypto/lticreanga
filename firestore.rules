@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function role() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role; }
+    function signed() { return request.auth != null; }
+    function admin() { return signed() && role() == 'admin'; }
+    function prof() { return signed() && role() in ['admin','profesor']; }
+    function ce() { return signed() && role() in ['admin','ce']; }
+    function poster() { return signed() && role() in ['admin','profesor','ce']; }
+    match /users/{id} { allow read: if signed() && (request.auth.uid == id || admin()); allow write: if admin(); }
+    match /anunturi/{id} {
+      allow read: if true; allow create: if poster();
+      allow update, delete: if admin() || (poster() && resource.data.uid == request.auth.uid);
+    }
+    match /resurse/{id} { allow read: if true; allow write: if prof(); }
+    match /meniu/{id} { allow read: if true; allow write: if ce(); }
+    match /{col}/{id} {
+      allow read: if col in ['evenimente','pagini','profesori','regulamente','orar','consiliu','succese'];
+      allow write: if admin() && col in ['evenimente','pagini','profesori','regulamente','orar','consiliu','succese'];
+    }
+    match /feedback/{id} { allow create: if true; allow read, delete: if admin(); }
+  }
+}
