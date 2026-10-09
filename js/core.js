@@ -24,7 +24,15 @@ if (document.body.classList.contains("home")) { const f = () => hd.classList.tog
 const dr = $("#drawer"), bg = $("#burger");
 function openD(o) { dr.classList.toggle("open", o); dr.inert = !o; bg.setAttribute("aria-expanded", o); document.documentElement.classList.toggle("lock", o); (o ? $("#closeD") : bg).focus(); }
 dr.inert = true; bg.onclick = () => openD(true); $("#closeD").onclick = $(".scrim", dr).onclick = () => openD(false);
-dr.onclick = e => { if (e.target.closest("a[href]")) openD(false); };
+const norm = p => p.replace(/index(\.html)?$/, "");
+dr.onclick = e => {
+  const a = e.target.closest("a[href]"); if (!a || e.defaultPrevented) return;
+  const u = new URL(a.href, location.href);
+  if (norm(u.pathname) === norm(location.pathname) && u.origin === location.origin) {
+    e.preventDefault(); openD(false); if (u.hash.length > 1) history.pushState(null, "", u.hash);
+    setTimeout(() => { try { u.hash.length > 1 ? $(u.hash).scrollIntoView({ behavior: "smooth" }) : scrollTo({ top: 0, behavior: "smooth" }); } catch (x) { } }, 80);
+  } else setTimeout(() => openD(false), 400);
+};
 addEventListener("keydown", e => { if (e.key === "Escape" && dr.classList.contains("open")) openD(false); });
 document.querySelectorAll("[data-social]").forEach(a => { const u = SOCIAL[a.dataset.social]; if (u) { a.href = u; a.hidden = false; } });
 document.querySelectorAll("[data-catalog]").forEach(a => { a.href = CATALOG_URL; a.target = "_blank"; a.rel = "noopener"; });
@@ -96,3 +104,14 @@ function listBlock(el) {
 }
 document.querySelectorAll("[data-slug]").forEach(textBlock);
 document.querySelectorAll("[data-col]").forEach(listBlock);
+
+/* animații la derulare, contor, buton „sus” */
+const calm = matchMedia("(prefers-reduced-motion:reduce)").matches;
+const count = b => { const t = +b.dataset.n; let s0; const f = ts => { s0 ??= ts; const p = Math.min((ts - s0) / 1300, 1); b.textContent = Math.round(t * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(f); }; requestAnimationFrame(f); };
+if (!calm && "IntersectionObserver" in window) {
+  const io = new IntersectionObserver(es => es.forEach(x => { if (x.isIntersecting) { x.target.classList.add("in"); io.unobserve(x.target); x.target.querySelectorAll("b[data-n]").forEach(count); } }), { threshold: .12 });
+  document.querySelectorAll(".shd,.q,.about>div,.orar,.calwrap,.fbk,.blk").forEach(el => { el.classList.add("rv"); io.observe(el); });
+}
+const up = document.body.appendChild(document.createElement("button")); up.className = "top"; up.type = "button"; up.setAttribute("aria-label", "Sus");
+up.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+up.onclick = () => scrollTo({ top: 0, behavior: "smooth" }); addEventListener("scroll", () => up.classList.toggle("show", scrollY > 700), { passive: true });
