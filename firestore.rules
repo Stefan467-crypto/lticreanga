@@ -24,6 +24,7 @@ service cloud.firestore {
     }
     match /resurse/{id} { allow read: if true; allow write: if prof(); }
     match /lectii/{id} { allow read: if true; allow write: if prof(); }
+    match /lectii_text/{id} { allow read: if true; allow write: if prof(); }
     match /meniu/{id} { allow read: if true; allow write: if ce(); }
     match /cereri_ai/{id} {
       allow create: if prof() && request.resource.data.uid == request.auth.uid;

@@ -40,3 +40,6 @@ Poze hero: `HERO` în `js/config.js`. Orar: `BELLS`. Materii: `SUBJECTS`. Cloudi
 
 ## Alte funcții
 Galerie foto (Cloudinary), aplicație instalabilă (manifest + `sw.js`), panou de accesibilitate (mărime text, contrast, citire ușoară, fără animații).
+
+## Optimizări generator
+Lista lecțiilor se încarcă rapid (textul se aduce doar pentru temele alese, din `lectii_text`), analiza textului se memorează, setările și istoricul rămân pe dispozitiv, iar generatorul estimează câte întrebări permite lecția. Regulile Firestore trebuie să includă `lectii_text`.

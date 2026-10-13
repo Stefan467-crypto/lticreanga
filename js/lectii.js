@@ -1,10 +1,10 @@
-import { $, esc, toast, whenRole, modal, sheet, can, user, db, collection, getDocs, addDoc, setDoc, deleteDoc, doc } from "./core.js";
+import { $, esc, toast, whenRole, modal, sheet, can, user, db, collection, getDocs, getDoc, setDoc, deleteDoc, doc } from "./core.js";
 import { SUBJECTS, CLASSES } from "./config.js";
-import { parse, clean } from "./engine.js";
+import { parse, parseC, statOf, clean } from "./engine.js";
 import { DEMO } from "./demo.js";
 let L = [], RES = [], fm = "", fc = "";
 const idx = s => { const i = SUBJECTS.indexOf(s); return i < 0 ? 99 : i; }, ci = c => CLASSES.indexOf(c), opt = (a, v) => a.map(x => `<option value="${esc(x)}"${x === v ? " selected" : ""}>${esc(x)}</option>`).join("");
-const stats = l => { const P = parse(l.text); return `${P.sents.length} propoziții · ${P.defs.length} definiții · ${P.forms.length} formule · ${P.probs.length} probleme`; };
+const stats = l => { const s = l.st || (l.text ? statOf(parseC(l.text)) : null); return s ? `${s.s} propoziții · ${s.d} definiții · ${s.f} formule · ${s.p} probleme` : ""; };
 const draw = () => {
   const m = [...new Set(L.map(l => l.materie))].sort((a, b) => idx(a) - idx(b));
   $("#fm").innerHTML = `<option value="">Toate materiile</option>` + opt(m, fm); $("#fc").innerHTML = `<option value="">Toate clasele</option>` + CLASSES.map(x => `<option value="${x}"${x === fc ? " selected" : ""}>Clasa ${x}</option>`).join("");
@@ -16,6 +16,11 @@ const load = async () => {
   L = (await getDocs(collection(db, "lectii"))).docs.map(d => ({ id: d.id, ...d.data() })); if (!L.length) L = DEMO.map(x => ({ ...x }));
   try { RES = (await getDocs(collection(db, "resurse"))).docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.tip === "Manual digital"); } catch (e) { RES = []; } draw();
 };
+/* Metadatele (listă rapidă) și textul (greu) sunt păstrate separat, ca lista să se încarce repede. */
+async function saveLesson(v, id) {
+  const { text, ...meta } = v, ref = id ? doc(db, "lectii", id) : doc(collection(db, "lectii"));
+  await setDoc(ref, { ...meta, st: statOf(parse(text)) }); await setDoc(doc(db, "lectii_text", ref.id), { text }); return ref.id;
+}
 /* ---------- citire PDF (pdf.js, încărcat doar când e nevoie) ---------- */
 const CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/", cache = {};
 async function lib() { if (!window.pdfjsLib) await new Promise((ok, no) => { const s = document.createElement("script"); s.src = CDN + "pdf.min.js"; s.onload = ok; s.onerror = () => no(new Error("Nu pot încărca modulul PDF (verifică internetul)")); document.head.append(s); }); pdfjsLib.GlobalWorkerOptions.workerSrc = CDN + "pdf.worker.min.js"; return pdfjsLib; }
@@ -45,7 +50,7 @@ function importMan() {
     const rows = E.t.value.split("\n").map(l => /^(.+?)\s*[|;]\s*(\d+)(?:\s*[-–]\s*(\d+))?\s*$/.exec(l.trim())).filter(Boolean); if (!rows.length) throw new Error("Scrie cel puțin o temă: Titlu | 45-52");
     const pdf = await openPdf(src), btn = f.querySelector(".btn"), man = E.f.files[0]?.name || (RES.find(r => r.id === E.man.value) || {}).titlu || ""; let ok = 0, skip = [];
     for (const [i, r] of rows.entries()) { btn.textContent = `Se importă ${i + 1}/${rows.length}…`; const a = +r[2], b = +(r[3] || r[2]), text = await pagesText(pdf, a, b);
-      if (text.length < 200) { skip.push(r[1]); continue; } await addDoc(collection(db, "lectii"), { materie: E.m.value, clasa: E.c.value, tema: r[1].trim(), text: text.slice(0, 60000), sursa: `${man}, pag. ${a}${b > a ? "–" + b : ""}`, uid: user.uid, ts: Date.now() }); ok++; }
+      if (text.length < 200) { skip.push(r[1]); continue; } await saveLesson({ materie: E.m.value, clasa: E.c.value, tema: r[1].trim(), text: text.slice(0, 60000), sursa: `${man}, pag. ${a}${b > a ? "–" + b : ""}`, uid: user.uid, ts: Date.now() }); ok++; }
     toast(`Importate ${ok} lecții${skip.length ? ` · fără text în PDF (scanat?): ${skip.join(", ")}` : ""}`); load();
   }, "Importă temele");
   const f = d.querySelector("form"), E = f.elements;
@@ -60,13 +65,14 @@ const form = o => {
 <label style="margin-top:1rem">Textul lecției<textarea name="x" rows="12" required>${esc(o?.text || "")}</textarea></label><p class="tag" id="an"></p>`, async f => {
     const E = f.elements, v = { materie: E.m.value, clasa: E.c.value, tema: E.t.value.trim(), text: E.x.value.trim(), uid: user.uid, ts: Date.now() }; if (o?.sursa) v.sursa = o.sursa;
     if (v.text.length < 200) throw new Error("Textul e prea scurt (minim ~200 caractere)");
-    o ? await setDoc(doc(db, "lectii", o.id), v) : await addDoc(collection(db, "lectii"), v); toast("Lecție salvată"); load();
+    await saveLesson(v, o?.id); toast("Lecție salvată"); load();
   }), E = d.querySelector("form").elements;
   const an = () => { const P = parse(E.x.value); $("#an").textContent = `Analiză: ${P.sents.length} propoziții utile · ${P.defs.length} definiții · ${P.forms.length} formule · ${P.probs.length} probleme`; }; E.x.oninput = an; an();
   $("#imp").onclick = async () => { const file = E.f.files[0]; if (!file) return toast("Alege un fișier PDF"); const b = $("#imp"); b.disabled = true; b.textContent = "Se extrage…"; try { E.x.value = await pagesText(await openPdf(file), +E.p1.value || 1, +E.p2.value || (+E.p1.value || 1) + 4); an(); toast("Text extras. Verifică-l și corectează-l."); } catch (e) { toast(e.message || "Nu am putut citi PDF-ul"); } b.disabled = false; b.textContent = "Extrage textul din PDF"; };
 };
 $("#fm").onchange = e => { fm = e.target.value; draw(); }; $("#fc").onchange = e => { fc = e.target.value; draw(); };
-$("#ll").onclick = async e => { const ed = e.target.dataset.ed, rm = e.target.dataset.rm; if (ed) form(L.find(x => x.id === ed)); if (rm && confirm("Ștergi lecția?")) { await deleteDoc(doc(db, "lectii", rm)); load(); } };
+$("#ll").onclick = async e => { const ed = e.target.dataset.ed, rm = e.target.dataset.rm; if (ed) { const x = L.find(y => y.id === ed); form({ ...x, text: x.text ?? (await getDoc(doc(db, "lectii_text", x.id))).data()?.text ?? "" }); }
+  if (rm && confirm("Ștergi lecția?")) { await deleteDoc(doc(db, "lectii", rm)); try { await deleteDoc(doc(db, "lectii_text", rm)); } catch (x) { } load(); } };
 $("#addL").onclick = start;
-$("#demoBtn").onclick = async () => { for (const x of DEMO) await addDoc(collection(db, "lectii"), { materie: x.materie, clasa: x.clasa, tema: x.tema, text: x.text, uid: user.uid, ts: Date.now() }); toast("Lecțiile de exemplu au fost adăugate"); load(); };
+$("#demoBtn").onclick = async () => { for (const x of DEMO) await saveLesson({ materie: x.materie, clasa: x.clasa, tema: x.tema.replace(/ \(exemplu\)$/, ""), text: x.text, uid: user.uid, ts: Date.now() }); toast("Lecțiile de exemplu au fost adăugate"); load(); };
 whenRole(() => load().catch(() => { L = DEMO.map(x => ({ ...x })); draw(); }));

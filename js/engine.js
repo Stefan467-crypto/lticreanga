@@ -70,8 +70,8 @@ export function generate(P, { n = 10, types = ["mcq", "tf", "blank", "num"], lev
   const distract = (t, s, cnt) => { // alternative plauzibile
     const out = new Set();
     if (t.kind === "n") { for (let i = 0; i < 12 && out.size < cnt; i++) { const x = nums.length && R() < .4 ? pick(nums) : mutNum(t.a); if (x !== t.a) out.add(x); } }
-    else if (t.def) { const up = t.a[0] === t.a[0].toUpperCase(), pool = shuf(P.defs.map(x => x.term).filter(x => nz(x) !== nz(t.a))); for (const p of pool) { if (out.size >= cnt) break; out.add(up ? cap(p) : p.charAt(0).toLowerCase() + p.slice(1)); } }
-    else { let pool = keys.filter(k => nz(k) !== nz(t.a) && !nz(s).includes(nz(k))); if (level > 0) pool = pool.sort((x, y) => Math.abs(x.length - t.a.length) - Math.abs(y.length - t.a.length)).slice(0, 10); pool = shuf(pool); const up = t.a[0] === t.a[0].toUpperCase(); for (const p of pool) { if (out.size >= cnt) break; out.add(up ? cap(p) : p); } }
+    else if (t.def) { const up = t.a[0] === t.a[0].toUpperCase(), pool = shuf(P.defs.map(x => x.term).filter(x => nz(x) !== nz(t.a) && nz(x).slice(0, 5) !== nz(t.a).slice(0, 5))); for (const p of pool) { if (out.size >= cnt) break; out.add(up ? cap(p) : p.charAt(0).toLowerCase() + p.slice(1)); } }
+    else { let pool = keys.filter(k => nz(k) !== nz(t.a) && nz(k).slice(0, 5) !== nz(t.a).slice(0, 5) && !nz(s).includes(nz(k))); if (level > 0) pool = pool.sort((x, y) => Math.abs(x.length - t.a.length) - Math.abs(y.length - t.a.length)).slice(0, 10); pool = shuf(pool); const up = t.a[0] === t.a[0].toUpperCase(); for (const p of pool) { if (out.size >= cnt) break; out.add(up ? cap(p) : p); } }
     return out.size >= cnt ? [...out].slice(0, cnt) : null;
   };
   const blankOut = (s, t) => t.kind === "w" ? s.replace(new RegExp(`(?<![\\p{L}\\d])${esc(t.a)}(?![\\p{L}\\d])`, "giu"), "_____") : s.split(t.a).join("_____");
@@ -106,9 +106,12 @@ export function generate(P, { n = 10, types = ["mcq", "tf", "blank", "num"], lev
   const W0 = { mcq: [.45, .35, .25], tf: [.25, .2, .15], blank: [.2, .25, .3], num: [.1, .2, .3] }, sum = en.reduce((a, t) => a + W0[t][level], 0);
   const quota = {}; let left = n; en.forEach(t => { quota[t] = Math.min(G[t].length * (t === "num" ? 3 : 1), Math.round(n * W0[t][level] / sum)); left -= quota[t]; });
   const items = [], used = new Set(), sigs = [];
-  const take = (t, cnt) => { const order = shuf(G[t]).sort((a, b) => (hist.has(a.sig) ? 1 : 0) - (hist.has(b.sig) ? 1 : 0)); let c = 0, tries = 0; const pool = t === "num" ? order.concat(order, order) : order; for (const g of pool) { if (c >= cnt) break; if (++tries > 400) break; if (!g.fresh && used.has(g.sig)) continue; const q = g.f(); if (!q) continue; if (items.some(x => nz(x.q) === nz(q.q))) continue; used.add(g.sig); items.push(q); sigs.push(g.fresh ? "" : g.sig); c++; } return c; };
+  const skOf = sig => { let m; if ((m = /^m\|d(\d+)\|/.exec(sig))) return "s" + P.defs[+m[1]].src; if ((m = /^[mbt]\|f(\d+)$/.exec(sig))) return "f" + m[1]; if ((m = /^[mbt]\|c?(\d+)$/.exec(sig))) return "s" + P.sents[+m[1]]; return ""; };
+  const usedSk = new Set();
+  const take = (t, cnt, strict = true) => { const order = shuf(G[t]).sort((a, b) => (hist.has(a.sig) ? 1 : 0) - (hist.has(b.sig) ? 1 : 0)); let c = 0, tries = 0; const pool = t === "num" ? order.concat(order, order) : order; for (const g of pool) { if (c >= cnt) break; if (++tries > 600) break; if (!g.fresh && used.has(g.sig)) continue; const sk = g.fresh ? "" : skOf(g.sig); if (strict && sk && usedSk.has(sk)) continue; const q = g.f(); if (!q) continue; if (items.some(x => nz(x.q) === nz(q.q))) continue; used.add(g.sig); if (sk) usedSk.add(sk); items.push(q); sigs.push(g.fresh ? "" : g.sig); c++; } return c; };
   en.forEach(t => { left += quota[t] - take(t, quota[t]); });
   for (let r = 0; left > 0 && r < 4; r++) for (const t of shuf(en)) { if (left <= 0) break; left -= take(t, 1); }
+  for (let r = 0; left > 0 && r < 6; r++) for (const t of shuf(en)) { if (left <= 0) break; left -= take(t, 1, false); }
   const idx = shuf(items.map((_, i) => i)).slice(0, n);
   return { q: idx.map(i => ({ t: items[i].t, q: items[i].q, ...(items[i].o ? { o: items[i].o } : {}) })), k: idx.map(i => items[i].k), src: idx.map(i => items[i].src), sigs: idx.map(i => sigs[i]).filter(Boolean), total: idx.length };
 }
@@ -121,3 +124,14 @@ export function grade(q, k, a) {
 }
 export const nota = (s, t) => t ? Math.max(1, Math.round(10 * s / t)) : 0;
 export const correct = (q, k) => q.t === "open" ? String(k) : q.t === "mcq" ? q.o[k] : q.t === "tf" ? (k ? "Adevărat" : "Fals") : q.t === "blank" ? k[0] : String(+k.v.toFixed(2)).replace(".", ",");
+
+/* ---- optimizări: analiză memorată și „câte întrebări permite lecția” ---- */
+const memo = new Map(), hash = t => { let h = 5381; for (let i = 0; i < t.length; i++) h = (h * 33 ^ t.charCodeAt(i)) >>> 0; return t.length + ":" + h; };
+export function parseC(text) { const k = hash(text); let P = memo.get(k); if (!P) { P = parse(text); memo.set(k, P); if (memo.size > 60) memo.delete(memo.keys().next().value); } return P; }
+const capMemo = new Map();
+export function capacity(P, key = "") {
+  if (key && capMemo.has(key)) return capMemo.get(key);
+  const c = {}; for (const t of ["mcq", "tf", "blank", "num"]) { const g = generate(P, { n: 120, types: [t], level: 1, seed: 1 }); c[t] = t === "num" ? (P.probs.length ? 99 : 0) : g.total; }
+  if (key) capMemo.set(key, c); return c;
+}
+export const statOf = P => ({ s: P.sents.length, d: P.defs.length, f: P.forms.length, p: P.probs.length });
