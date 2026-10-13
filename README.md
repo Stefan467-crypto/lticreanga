@@ -43,3 +43,6 @@ Galerie foto (Cloudinary), aplicație instalabilă (manifest + `sw.js`), panou d
 
 ## Optimizări generator
 Lista lecțiilor se încarcă rapid (textul se aduce doar pentru temele alese, din `lectii_text`), analiza textului se memorează, setările și istoricul rămân pe dispozitiv, iar generatorul estimează câte întrebări permite lecția. Regulile Firestore trebuie să includă `lectii_text`.
+
+## Cuprinsul manualului
+La „Import din manual”: alegi paginile cuprinsului (de la–până la) și apeși „Citește cuprinsul”. Dacă nu alegi nimic, caut întâi semnele de carte ale PDF-ului, apoi pagina „Cuprins”. „Vezi paginile manualului” arată paginile ca să o găsești singur. Decalajul dintre numărul tipărit și pagina PDF se calculează automat sau îl scrii tu.
