@@ -1,5 +1,5 @@
-import { $, esc, toast, whenRole, modal, sheet, can, role, user, upload, safeUrl, db, collection, getDocs, addDoc, deleteDoc, doc } from "./core.js";
-import { CATS, BELLS, HERO, HERO_MS } from "./config.js";
+import { $, esc, toast, whenRole, modal, sheet, can, role, user, upload, safeUrl, db, collection, getDocs, addDoc, deleteDoc, doc, getDoc, setDoc } from "./core.js";
+import { CATS, BELLS, HERO, HERO_MS, STATS } from "./config.js";
 const all = async c => (await getDocs(collection(db, c))).docs.map(d => ({ id: d.id, ...d.data() }));
 const p2 = n => String(n).padStart(2, "0"), iso = d => d.toISOString().slice(0, 10), fmt = d => new Date(d).toLocaleDateString("ro-RO", { day: "numeric", month: "short", year: "numeric" });
 /* hero: pozele se schimbă singure (se încarcă pe rând) */
@@ -71,3 +71,12 @@ $("#ff").onsubmit = async e => { e.preventDefault(); const b = e.target.querySel
 whenRole(() => { loadA().catch(() => $("#posts").innerHTML = '<p class="tag mid">Anunțurile nu pot fi încărcate.</p>'); loadE().catch(drawE); });
 
 if (location.hash.length > 1) setTimeout(() => { try { $(location.hash).scrollIntoView(); } catch (e) { } }, 900);
+
+/* cifrele școlii: elevi, cadre didactice, clase (le schimbă administratorul) */
+const drawStats = c => { const set = (k, v, t) => { const b = document.querySelector(`[data-k="${k}"]`); if (!b) return; b.dataset.n = v; b.textContent = v; if (t) b.nextElementSibling.textContent = t; }; set("elevi", c.elevi); set("cadre", c.cadre); set("clase", c.claseGim + c.claseLic, `clase: ${c.claseGim} gimnaziu, ${c.claseLic} liceu`); };
+let ST = { ...STATS };
+getDoc(doc(db, "pagini", "cifre")).then(d => { if (d.exists()) ST = { ...ST, ...d.data() }; drawStats(ST); }).catch(() => drawStats(ST));
+$("#editFacts")?.addEventListener("click", () => modal("Cifrele școlii", `<div class="grid"><label>Elevi<input name="e" type="number" min="0" required value="${ST.elevi}"></label><label>Cadre didactice<input name="c" type="number" min="0" required value="${ST.cadre}"></label><label>Clase la gimnaziu<input name="g" type="number" min="0" required value="${ST.claseGim}"></label><label>Clase la liceu<input name="l" type="number" min="0" required value="${ST.claseLic}"></label></div><p class="tag">Numărul total de clase se calculează singur.</p>`, async f => {
+  const E = f.elements, v = { elevi: +E.e.value, cadre: +E.c.value, claseGim: +E.g.value, claseLic: +E.l.value };
+  await setDoc(doc(db, "pagini", "cifre"), v); ST = v; drawStats(v); toast("Cifrele au fost actualizate");
+}));

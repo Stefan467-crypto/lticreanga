@@ -24,19 +24,15 @@ Se postează doar anunțurile cu bifa activă. Instagram cere imagine.
 
 ## Structură
 `index.html` (hero cu poze, anunțuri, orar, calendar), `resurse.html`, `info.html`, `profesori.html`, `cantina.html`, `login.html`, `admin.html` (Panou, doar admin).
-Poze hero: `HERO` în `js/config.js`. Orar: `BELLS`. Materii: `SUBJECTS`. Cloudinary: `CLOUDINARY`.
+Poze hero: `HERO` în `js/config.js`. Orar: `BELLS`. Materii și clasele lor: `DEFS` din `js/config.js`. Cifrele școlii (elevi, cadre, clase): se schimbă din pagina principală, de administrator. Cloudinary: `CLOUDINARY`.
 
 ## Generator de teste
 - **Baza de lecții** (`lectii`): profesorii aduc textul manualelor automat. Manualul PDF se încarcă o dată în **Resurse** (tip „Manual digital”), apoi în Baza de lecții apeși „Din manualul de pe site”, citești cuprinsul și imporți toate temele deodată. Merge pentru orice materie.
 - **Generatorul** (`teste`): creează teste unice doar din textul lecției (fără API). Elevii se antrenează și primesc nota; profesorii (modul „Test pe hârtie”) aleg variante diferite și **descarcă testul și baremul în PDF** (generat în browser).
-- **Claude AI (opțional)**: dacă pui `AI = true` în `js/config.js` și funcția `aiTest` e online, profesorii pot cere ca Claude să citească lecția și să scrie testul (inclusiv întrebări deschise și probleme), cu citatul-sursă verificat în text.
-
-### Pornirea funcției Claude AI (o singură dată)
-1. Firebase: planul **Blaze**. Cheie API de la console.anthropic.com (nu o pune niciodată în site sau în repo).
-2. Google Cloud Console → Secret Manager → creează secretul `ANTHROPIC_API_KEY` cu cheia ta.
-3. De pe un calculator: `npm i -g firebase-tools`, `firebase login`, apoi în folderul site-ului `npm i --prefix functions && firebase deploy --only functions`.
-   (Alternativ, din GitHub: adaugi secretul `FIREBASE_SERVICE_ACCOUNT` și rulezi workflow-ul „Deploy functions”.)
-4. În `js/config.js` pune `AI = true`. Limita: 30 de teste AI pe profesor pe zi (`DAILY` în `functions/index.js`). Modelul se poate schimba cu variabila `AI_MODEL`.
+- **Structura**: materie → clasă → capitol → teme. Capitolele se citesc singure din cuprinsul manualului (sau se scriu cu `# Capitol`).
+- **Tipuri de exerciții pe materii** și **modele de test „ca la examen”** (gimnaziu la clasele V–IX, BAC la X–XII): `js/exam.js` (structură, număr de itemi, punctaj, timp). Conținutul vine mereu din lecție.
+- **Probleme**: motorul le extrage singur din lecție („Problemă… Rezolvare… Răspuns…”) și le transformă în probleme cu numere noi la fiecare test.
+- Nu se folosește niciun API extern (fără AI, fără costuri).
 
 ## Alte funcții
 Galerie foto (Cloudinary), aplicație instalabilă (manifest + `sw.js`), panou de accesibilitate (mărime text, contrast, citire ușoară, fără animații).

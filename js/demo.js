@@ -1,7 +1,8 @@
 // Lecții de exemplu (texte scrise pentru demonstrație, nu sunt copiate din manuale).
-const L = (id, materie, clasa, tema, text) => ({ id: "demo-" + id, materie, clasa, tema: tema + " (exemplu)", demo: 1, text });
+const CH = { fizica: "Capitolul 1. Fenomene luminoase", matematica: "Capitolul 1. Geometria plană", chimie: "Capitolul 1. Structura materiei", biologie: "Capitolul 1. Organizarea vieții", istorie: "Capitolul 1. Epoca modernă", geografie: "Capitolul 1. Pământul în Univers", romana: "Capitolul 1. Părțile de vorbire", informatica: "Capitolul 1. Bazele programării" };
+const L = (id, materie, clasa, tema, text) => ({ id: "demo-" + id, materie, clasa, capitol: CH[id] + " (exemplu)", pag: 1, tema: tema + " (exemplu)", demo: 1, text });
 export const DEMO = [
-  L("fizica", "Fizică", "IX", "Optica geometrică", `# Optica geometrică
+  L("fizica", "Fizica", "IX", "Optica geometrică", `# Optica geometrică
 Optica geometrică studiază fenomenele luminoase folosind noțiunea de rază de lumină.
 Raza de lumină este o dreaptă orientată care indică direcția și sensul de propagare a luminii.
 Un mediu transparent este mediul prin care lumina se propagă fără a fi absorbită sau împrăștiată în mod semnificativ.
@@ -15,6 +16,12 @@ Indicele de refracție absolut al unui mediu este raportul dintre viteza luminii
 Indicele de refracție al apei este aproximativ 1,33 iar al sticlei aproximativ 1,5.
 Indice de refracție: n = c / v
 Convergența lentilei: C = 1 / f
+Problemă. Lumina parcurge distanța de 600000 km în 2 s. Calculați viteza luminii.
+Rezolvare: v = d / t = 600000 / 2 = 300000 km/s
+Răspuns: 300000 km/s
+Problemă. O lentilă are distanța focală de 0,5 m. Calculați convergența lentilei.
+Rezolvare: C = 1 / f = 1 / 0,5 = 2 dioptrii
+Răspuns: 2 dioptrii
 Oglinda plană formează imagini virtuale, drepte și de aceeași mărime cu obiectul.
 Imaginea virtuală este imaginea care nu poate fi proiectată pe un ecran.
 Lentila convergentă este lentila care concentrează razele de lumină paralele într-un punct numit focar.
@@ -26,7 +33,7 @@ Mărire liniară: β = y2 / y1
 @problema Un obiect se află la {x:10-40:5} cm de o oglindă plană. La ce distanță de obiect se află imaginea? => 2*x | cm
 @problema O lentilă are distanța focală f = {f:0.1-0.5:0.05} m. Calculează convergența lentilei. => 1/f | dioptrii
 @problema Viteza luminii într-un mediu este {v:150000-250000:10000} km/s. Calculează indicele de refracție al mediului (c = 300000 km/s). => 300000/v | fără unitate`),
-  L("matematica", "Matematică", "VIII", "Teorema lui Pitagora", `# Teorema lui Pitagora
+  L("matematica", "Matematica", "VIII", "Teorema lui Pitagora", `# Teorema lui Pitagora
 Triunghiul dreptunghic este triunghiul care are un unghi drept.
 Ipotenuza este latura opusă unghiului drept și este cea mai lungă latură a triunghiului dreptunghic.
 Catetele sunt laturile care formează unghiul drept al triunghiului dreptunghic.
@@ -43,7 +50,7 @@ Perimetrul pătratului: P = 4 · l
 @problema Un dreptunghi are lungimea {L:5-20} cm și lățimea {l:2-9} cm. Calculează aria dreptunghiului. => L*l | cm²
 @problema Un pătrat are latura de {l:3-15} cm. Calculează perimetrul pătratului. => 4*l | cm
 @problema Un triunghi are baza de {b:4-20} cm și înălțimea de {h:2-12} cm. Calculează aria triunghiului. => b*h/2 | cm²`),
-  L("chimie", "Chimie", "VII", "Atomul", `# Atomul
+  L("chimie", "Chimia", "VII", "Atomul", `# Atomul
 Atomul este particula de bază din care sunt formate substanțele și care păstrează proprietățile elementului chimic.
 Nucleul este partea centrală a atomului și conține protoni și neutroni.
 Protonii sunt particulele cu sarcină electrică pozitivă din nucleul atomului.
@@ -71,7 +78,7 @@ Fotosinteza este procesul prin care plantele produc substanțe organice folosind
 Respirația celulară este procesul prin care celulele eliberează energia din substanțele organice.
 Țesutul este un grup de celule asemănătoare care îndeplinesc aceeași funcție.
 Organismele unicelulare sunt formate dintr-o singură celulă.`),
-  L("istorie", "Istorie", "VIII", "Unirea Principatelor Române", `# Unirea Principatelor Române
+  L("istorie", "Istoria", "VIII", "Unirea Principatelor Române", `# Unirea Principatelor Române
 Unirea Principatelor Române a avut loc în anul 1859, prin dubla alegere a lui Alexandru Ioan Cuza.
 Alexandru Ioan Cuza a fost ales domn al Moldovei la 5 ianuarie 1859.
 Alexandru Ioan Cuza a fost ales domn al Țării Românești la 24 ianuarie 1859.
@@ -99,7 +106,7 @@ Succesiunea zilei și a nopții este o consecință a mișcării de rotație.
 Succesiunea anotimpurilor este o consecință a mișcării de revoluție și a înclinării axei Pământului.
 Pe Pământ există șapte continente: Asia, Africa, America de Nord, America de Sud, Antarctida, Europa și Australia.
 Oceanul Pacific este cel mai mare ocean de pe Pământ.`),
-  L("romana", "Limba și literatura română", "V", "Substantivul", `# Substantivul
+  L("romana", "Limba română", "V", "Substantivul", `# Substantivul
 Substantivul este partea de vorbire care denumește ființe, lucruri, fenomene ale naturii și noțiuni abstracte.
 Substantivul comun este substantivul care denumește ființe, lucruri sau fenomene dintr-o categorie.
 Substantivul propriu este substantivul care denumește o singură ființă sau un singur lucru din categoria respectivă și se scrie cu inițială mare.
@@ -111,7 +118,7 @@ Cazurile substantivului sunt nominativ, acuzativ, genitiv, dativ și vocativ.
 Articolul este partea de vorbire care însoțește substantivul și arată dacă acesta este cunoscut sau necunoscut.
 Vocativul este cazul care exprimă adresarea directă către cineva sau ceva.
 Substantivul are în propoziție funcții sintactice precum subiect, nume predicativ, atribut și complement.`),
-  L("informatica", "Informatică", "V", "Algoritmul", `# Algoritmul
+  L("informatica", "Informatica", "VII", "Algoritmul", `# Algoritmul
 Algoritmul este o succesiune finită de pași bine definiți care duc la rezolvarea unei probleme.
 Datele de intrare sunt informațiile pe care algoritmul le primește la început.
 Datele de ieșire sunt rezultatele pe care algoritmul le oferă la final.

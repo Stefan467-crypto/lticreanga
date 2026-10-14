@@ -1,9 +1,9 @@
 import { $, esc, toast, whenRole, modal, can, db, collection, getDocs, setDoc, deleteDoc, doc } from "./core.js";
-import { BELLS, CLASSES, LETTERS, SUBJECTS } from "./config.js";
+import { BELLS, CLASSES, LETTERS, SUBJECTS, canon } from "./config.js";
 const D = [["lu", "Luni"], ["ma", "Marți"], ["mi", "Miercuri"], ["jo", "Joi"], ["vi", "Vineri"]], N = BELLS.length, RX = /^(XII|XI|X|IX|VIII|VII|VI|V)\s*[-–]?\s*([A-Za-z])$/;
 const slug = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const les = (o, d) => { const z = o.zile?.[d], a = Array.isArray(z) ? z : String(z || "").split("\n"); return Array.from({ length: N }, (_, i) => (a[i] || "").trim()); };
-const mi = t => t.split(":").reduce((h, m) => h * 60 + +m), subIdx = s => { const i = SUBJECTS.indexOf(s); return i < 0 ? 99 : i; };
+const mi = t => t.split(":").reduce((h, m) => h * 60 + +m), subIdx = s => { const i = SUBJECTS.indexOf(canon(s)); return i < 0 ? 99 : i; };
 let all = [], tip = "elevi", cl = "", lt = "", sub = "Toate", cur = "", sel = null;
 const stu = () => all.filter(o => o.tip === "elevi" && o.clasa), tea = () => all.filter(o => o.tip === "profesori").sort((a, b) => subIdx(a.materie) - subIdx(b.materie) || a.nume.localeCompare(b.nume, "ro"));
 const chips = (arr, on, k, extra = () => "") => `<div class="tabs">${arr.map(([v, l]) => `<button data-${k}="${esc(v)}" aria-selected="${v === on}" class="${extra(v)}">${l}</button>`).join("")}</div>`;
@@ -51,7 +51,7 @@ ${D.map(([k], i) => `<div class="day" data-k="${k}"${i ? " hidden" : ""}>${BELLS
   const f = d.querySelector("form"), E = f.elements;
   const sync = () => { const t = E.p.value === "profesori"; f.querySelector("#fe").hidden = t; f.querySelector("#fp").hidden = !t; f.querySelector("#dl").innerHTML = (t ? names : SUBJECTS).map(x => `<option value="${x}">`).join(""); };
   E.p.onchange = sync; E.p.value = o?.tip || tip;
-  if (o) { if (o.tip === "elevi") { E.c.value = o.clasa; E.l.value = o.lit; } else { E.n.value = o.nume; E.m.value = o.materie || SUBJECTS[0]; } D.forEach(([k]) => les(o, k).forEach((v, r) => E[k + r].value = v)); }
+  if (o) { if (o.tip === "elevi") { E.c.value = o.clasa; E.l.value = o.lit; } else { E.n.value = o.nume; E.m.value = canon(o.materie) || SUBJECTS[0]; } D.forEach(([k]) => les(o, k).forEach((v, r) => E[k + r].value = v)); }
   else if (tip === "elevi") { E.c.value = cl; E.l.value = lt; }
   sync();
   f.querySelector("#dt").onclick = e => { const k = e.target.dataset.k; if (!k) return; f.querySelectorAll("#dt button").forEach(b => b.setAttribute("aria-selected", b.dataset.k === k)); f.querySelectorAll(".day").forEach(x => x.hidden = x.dataset.k !== k); };

@@ -1,8 +1,8 @@
 import { $, esc, toast, whenRole, modal, sheet, can, upload, safeUrl, db, collection, getDocs, addDoc, setDoc, deleteDoc, doc } from "./core.js";
-import { SUBJECTS } from "./config.js";
+import { SUBJECTS, canon } from "./config.js";
 import { nz } from "./engine.js";
 let T = [], f = "Toate";
-const idx = s => { const i = SUBJECTS.indexOf(s); return i < 0 ? 99 : i; }, ini = n => n.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+const idx = s => { const i = SUBJECTS.indexOf(canon(s)); return i < 0 ? 99 : i; }, ini = n => n.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
 const contact = c => { const d = c.replace(/\D/g, ""); return /@/.test(c) ? `<a href="mailto:${esc(c)}">${esc(c)}</a>` : d.length >= 6 ? `<a href="tel:${esc(c.replace(/[^\d+]/g, ""))}">${esc(c)}</a>` : esc(c); };
 const av = (t, big) => t.img ? `<img class="av${big ? " big" : ""}" loading="lazy" alt="" src="${esc(safeUrl(t.img))}">` : `<div class="av ini${big ? " big" : ""}">${esc(ini(t.nume))}</div>`;
 let q = "";
