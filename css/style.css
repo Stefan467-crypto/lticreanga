@@ -226,3 +226,12 @@ html.a-calm *{animation:none!important;transition:none!important;scroll-behavior
 .mr{list-style:none;margin:.4rem 0 0;padding:.7rem 1rem;border-radius:14px;border:1px dashed var(--bd);font-size:.92rem;display:grid;gap:.35rem}.mr li{margin:0}.mr b{color:var(--ac);margin-right:.3rem}
 .tabs button.off{opacity:.45}
 @media (max-width:560px){.chh{padding:.7rem .8rem}.mrow{flex-direction:column;align-items:stretch}.mrow select{width:100%}}
+
+/* disclaimer (cerință regulament) + contact cu hartă */
+.disc{font-size:.76rem;line-height:1.5;color:#a99a8e;margin:1.6rem auto 0;padding-top:1rem;border-top:1px solid rgba(255,255,255,.12)}
+.cgrid{display:grid;gap:1.2rem;grid-template-columns:1fr 1.4fr;align-items:stretch}
+.cinfo{margin:0;padding:1.2rem;background:var(--card);border:1px solid var(--bd);border-radius:1rem}
+.cinfo dt{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin-top:.8rem}.cinfo dt:first-child{margin-top:0}
+.cinfo dd{margin:.15rem 0 0;font-weight:500;overflow-wrap:anywhere}
+.map{width:100%;min-height:280px;height:100%;border:1px solid var(--bd);border-radius:1rem;background:#eee}
+@media(max-width:760px){.cgrid{grid-template-columns:1fr}.map{min-height:260px}}
