@@ -13,7 +13,7 @@ export const HERO = [
 ];
 export const HERO_MS = 6000; // cât stă fiecare poză (milisecunde)
 export const CLOUDINARY = { cloud: "dp1y1xv5l", preset: "Lticreanga" };
-export const CATALOG_URL = "https://agenda.sime.md/ords/r/agenda/main/public";
+export const CATALOG_URL = "https://agenda.sime.md";
 export const SOCIAL = { facebook: "https://www.facebook.com/share/1C85paRqdb/", instagram: "https://www.instagram.com/consiliul.elevilor.ion.creanga?srtk=MW0yZGE5NWl1anc4OQ==" }; // linkurile paginilor școlii (dacă sunt goale, nu apar)
 export const CATS = ["Sărbători", "Examene/BAC/Teze", "Concursuri & Olimpiade", "Succesele elevilor", "Consiliul Elevilor", "General"];
 export const LETTERS = ["A", "B", "C", "D"]; // literele claselor
