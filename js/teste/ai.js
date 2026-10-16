@@ -55,3 +55,34 @@ ${raw.slice(0, 20000)}`);
   for (const c of arr(j.capitole)) for (const t of arr(c.teme)) { const p = +t.pagina, ti = str(t.titlu, 160); if (ti && Number.isInteger(p) && p > 0 && !seen.has(nz(ti) + "|" + p)) { seen.add(nz(ti) + "|" + p); out.push({ t: ti, p, ch: str(c.titlu, 120) }); } }
   return out.sort((a, b) => a.p - b.p);
 }
+
+/* ---- test compus direct de AI, pe structura cerută (cantități pe tipuri) ----
+   Fiecare item cere „sursa” (propoziție din lecție) și e verificat; ce nu trece de verificare rămâne pe locul lui din generatorul local. */
+const shuffle = (a, r = Math.random) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+export async function composeTest(texts, counts, { materie, clasa, level = 1, avoid = [] }) {
+  const per = Math.floor(30000 / Math.max(1, texts.length)), body = texts.map(t => `### ${t.tema}\n${t.text.slice(0, per)}`).join("\n\n"), hay = nz(texts.map(t => t.text).join("\n"));
+  const want = { grile: counts.mcq || 0, adevarat_fals: counts.tf || 0, completari: counts.blank || 0, asocieri: counts.match || 0, raspuns_scurt: counts.open || 0, calcul: counts.num || 0, probleme: counts.prob || 0 };
+  const lv = ["ușoare, de recunoaștere și reproducere", "de dificultate medie, cu înțelegere", "dificile, cu aplicare și raționament"][level] || "de dificultate medie";
+  const j = await call(`Ești profesor de ${materie}, clasa ${clasa}, în Republica Moldova. Creează un TEST din TEXTUL lecției de mai jos, și NUMAI din el. Întrebările sunt ${lv}.
+REGULI: nu folosi cunoștințe din afara textului; nu întreba despre figuri, pagini, tabele sau exerciții din manual; fiecare întrebare trebuie să se înțeleagă singură (fără „în text”, „mai sus”); limba română corectă; întrebări diferite între ele și variate. Fiecare element are \"sursa\" = o propoziție copiată EXACT din text (max 200 de caractere) pe care se sprijină. La grile: 4 variante plauzibile din aceeași materie, o singură corectă, poziția corectă variază. La adevărat/fals: aproximativ jumătate false (falsul = o mică schimbare a unui fapt din text). La completări: o propoziție cu ___ în locul unui termen-cheie. Asocierile au exact 4 perechi. La calcul: date numerice complete în enunț, rezultat numeric exact, „rezolvare” scurtă.${avoid.length ? `\nNu repeta aceste întrebări deja folosite: ${avoid.slice(0, 40).map(x => "„" + x.slice(0, 70) + "”").join("; ")}` : ""}
+Cantități EXACTE (dacă o cantitate e 0, lasă lista goală): ${Object.entries(want).map(([k, v]) => `${k}: ${v}`).join(", ")}.
+Returnează DOAR JSON:
+{"grile":[{"enunt":"","variante":["","","",""],"corect":0,"sursa":""}],
+"adevarat_fals":[{"enunt":"","adevarat":true,"sursa":""}],
+"completari":[{"enunt":"","raspuns":"","sursa":""}],
+"asocieri":[{"enunt":"Asociază …","perechi":[{"termen":"","corespondent":""}],"sursa":""}],
+"raspuns_scurt":[{"enunt":"","model":"","sursa":""}],
+"calcul":[{"enunt":"","rezultat":0,"unitate":"","rezolvare":"","sursa":""}],
+"probleme":[{"enunt":"","rezolvare":"","raspuns":"","sursa":""}]}
+TEXT:
+${body}`);
+  const out = { mcq: [], tf: [], blank: [], match: [], open: [], num: [], prob: [] };
+  for (const m of arr(j.grile)) { const q = str(m.enunt), o = arr(m.variante).map(x => str(x, 160)), k = +m.corect; if (q.length >= 12 && o.length === 4 && o.every(Boolean) && new Set(o.map(nz)).size === 4 && Number.isInteger(k) && k >= 0 && k <= 3 && inText(hay, str(m.sursa, 300))) { const sh = shuffle(o.map((x, i) => [x, i === k])); out.mcq.push({ q: { t: "mcq", q, o: sh.map(x => x[0]) }, k: sh.findIndex(x => x[1]), src: str(m.sursa, 300) }); } }
+  for (const m of arr(j.adevarat_fals)) { const q = str(m.enunt); if (q.length >= 12 && typeof m.adevarat === "boolean" && inText(hay, str(m.sursa, 300))) out.tf.push({ q: { t: "tf", q }, k: m.adevarat, src: str(m.sursa, 300) }); }
+  for (const m of arr(j.completari)) { const q = str(m.enunt).replace(/_{2,}/g, "_____"), a = str(m.raspuns, 60); if (/_{5}/.test(q) && a && inText(hay, str(m.sursa, 300))) out.blank.push({ q: { t: "blank", q }, k: [a], src: str(m.sursa, 300) }); }
+  for (const m of arr(j.asocieri)) { const P = arr(m.perechi).map(x => [str(x.termen, 90), str(x.corespondent, 140)]).filter(x => x[0] && x[1]); if (P.length === 4 && new Set(P.map(x => nz(x[1]))).size === 4 && inText(hay, str(m.sursa, 300))) { const R = shuffle(P.map((x, i) => [x[1], i])); out.match.push({ q: { t: "match", q: str(m.enunt) || "Asociază noțiunile cu explicațiile potrivite.", L: P.map(x => x[0]), R: R.map(x => x[0]) }, k: P.map((_, i) => R.findIndex(x => x[1] === i)), src: str(m.sursa, 300) }); } }
+  for (const m of arr(j.raspuns_scurt)) { const q = str(m.enunt), a = str(m.model, 500); if (q.length >= 12 && a.length >= 10 && inText(hay, str(m.sursa, 300))) out.open.push({ q: { t: "open", q }, k: a, src: str(m.sursa, 300) }); }
+  for (const m of arr(j.calcul)) { const q = str(m.enunt, 600), v = typeof m.rezultat === "number" ? m.rezultat : parseFloat(String(m.rezultat).replace(",", ".")), u = str(m.unitate, 20); if (q.length >= 25 && isFinite(v) && inText(hay, str(m.sursa, 300))) out.num.push({ q: { t: "num", q: q + (u ? ` Exprimă rezultatul în ${u}.` : "") }, k: { v }, src: str(m.sursa, 300) + (str(m.rezolvare, 400) ? " · Rezolvare: " + str(m.rezolvare, 400) : "") }); }
+  for (const m of arr(j.probleme)) { const q = str(m.enunt, 700), r = str(m.rezolvare, 900), a = str(m.raspuns, 120); if (q.length >= 25 && (r || a) && inText(hay, str(m.sursa, 300))) out.prob.push({ q: { t: "prob", q }, k: (r + (a ? "\nRăspuns: " + a : "")).trim(), src: str(m.sursa, 300) }); }
+  return out;
+}

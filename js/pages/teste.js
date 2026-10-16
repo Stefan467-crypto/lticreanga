@@ -3,6 +3,8 @@ import { SUBJECTS, CLASSES, canon } from "../core/config.js";
 import { KIND, OPEN_KINDS, profile, models, total } from "../teste/exam.js";
 import { merge, parseC, withAi, generate, generateExam, grade, nota, correct, capacity } from "../teste/engine.js";
 import { DEMO } from "../teste/demo.js";
+import { aiOn, composeTest } from "../teste/ai.js";
+import { auth } from "../core/firebase.js";
 const TY = { mcq: "Grilă", tf: "Adevărat / Fals", blank: "Completare", num: "Problemă", match: "Asociere", open: "Răspuns scurt", prob: "Problemă cu rezolvare" }, LV = ["Ușor", "Mediu", "Greu"], OL = "ABCD";
 const idx = s => { const i = SUBJECTS.indexOf(s); return i < 0 ? 99 : i; }, slug = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), NC = (a, b) => String(a).localeCompare(String(b), "ro", { numeric: true });
 const chap = l => l.capitol || "Fără capitol";
@@ -13,13 +15,15 @@ const texts = ls => Promise.all(ls.map(async l => ({ ...l, ...(await docOf(l)) }
 const PL = l => withAi(parseC(l.text), l.ai);
 /* ---------- setări memorate pe dispozitiv ---------- */
 const saveS = () => { try { localStorage.tcfg2 = JSON.stringify({ mat: S.mat, cl: S.cl, kp: S.kp, ids: [...S.ids], n: S.n, lv: S.lv, ty: [...S.ty], mode: S.mode, nv: S.nv, md: S.md }); } catch (e) { } };
-const loadS = () => { try { const c = JSON.parse(localStorage.tcfg2 || "null"); if (c) Object.assign(S, c, { ids: new Set(c.ids || []), ty: new Set(c.ty && c.ty.length ? c.ty : ["mcq", "tf", "blank", "num"]) }); } catch (e) { } };
+const loadS = () => { try { const c = JSON.parse(localStorage.tcfg2 || "null"); if (c) Object.assign(S, c, { ids: new Set(c.ids || []), ty: new Set((c.ty || []).filter(x => x !== "prob").length ? c.ty.filter(x => x !== "prob") : ["mcq", "tf", "blank", "num"]) }); } catch (e) { } };
 const hist = () => { try { return JSON.parse(localStorage.tsig || "{}"); } catch (e) { return {}; } };
 const chip = (a, on, t, cls = "") => `<button type="button" ${a} aria-selected="${on}" class="${cls}">${t}</button>`, sel = () => L.filter(l => S.ids.has(l.id));
 const paper = () => S.mode === "paper" && can("resurse");
 const mdl = () => models(S.mat, S.cl).find(m => m.id === S.md) || null;
 const fmt = n => String(+n.toFixed(1)).replace(".", ",");
 /* ---------- configurare: materia → clasa → capitolul → temele ---------- */
+const aiReady = () => aiOn() && !!auth.currentUser;
+const sel1 = (f, arr, cur, lab = x => x) => `<select data-f="${f}">${arr.map(x => `<option value="${esc(x)}"${x === cur ? " selected" : ""}>${esc(lab(x))}</option>`).join("")}</select>`;
 const drawCfg = () => {
   if (!L.length) { $("#cfg").innerHTML = '<p class="tag mid">Nu sunt lecții încă. Un profesor le adaugă în <a href="lectii">Baza de lecții</a>.</p>'; return; }
   const mats = SUBJECTS.filter(s => L.some(l => l.materie === s)); if (!mats.includes(S.mat)) S.mat = mats[0];
@@ -28,25 +32,40 @@ const drawCfg = () => {
   const ts = inC.filter(l => chap(l) === S.kp).sort((a, b) => (a.pag ?? 1e9) - (b.pag ?? 1e9) || NC(a.tema, b.tema));
   S.ids = new Set([...S.ids].filter(id => ts.some(t => t.id === id))); if (!S.ids.size && ts[0]) S.ids.add(ts[0].id);
   const th = can("resurse"), pf = profile(S.mat), ms = models(S.mat, S.cl); if (S.md !== "free" && !ms.some(m => m.id === S.md)) S.md = "free";
-  const md = mdl(), types = pf.all.filter(k => !OPEN_KINDS.has(k) || paper()), all = ts.every(t => S.ids.has(t.id));
-  $("#cfg").innerHTML = `<h3><span class="num">1</span> Alege lecția</h3><p class="kick">Materia</p><div class="tabs">${mats.map(m => chip(`data-m="${esc(m)}"`, m === S.mat, esc(m))).join("")}</div><p class="kick">Clasa</p><div class="tabs">${cls.map(c => chip(`data-c="${c}"`, c === S.cl, c)).join("")}</div><p class="kick">Capitolul</p><div class="tabs">${chs.map(c => chip(`data-k="${esc(c)}"`, c === S.kp, esc(c))).join("")}</div><p class="kick">Temele din capitol (poți alege mai multe) <button type="button" class="lnk" data-all="1">${all ? "Doar prima" : "Tot capitolul"}</button></p><div class="tabs">${ts.map(t => chip(`data-t="${t.id}"`, S.ids.has(t.id), esc(t.tema))).join("")}</div>
-<h3 style="margin-top:1.6rem"><span class="num">2</span> Setează testul</h3>${th ? `<p class="kick">Pentru cine</p><div class="tabs seg">${chip('data-mode="train"', S.mode === "train", "Antrenament (elevi)")}${chip('data-mode="paper"', S.mode === "paper", "Test pe hârtie (profesor)")}</div>` : ""}
-<p class="kick">Modelul testului</p><div class="tabs">${chip('data-md="free"', S.md === "free", "Liber")}${ms.map(m => chip(`data-md="${m.id}"`, S.md === m.id, esc(m.nume))).join("")}</div>
-${md ? `<p class="capi">${esc(md.nume)}: ${md.parts.length} părți, ${md.parts.reduce((a, p) => a + p.it.length, 0)} itemi, ${total(md)} puncte${paper() ? `, ${md.minute} minute` : ""}. Structura e ca la modelul oficial, iar conținutul vine doar din lecțiile alese.${paper() ? "" : " În antrenament apar doar itemii care se pot corecta automat."}</p>` : `<p class="kick">Număr de întrebări</p><div class="tabs">${[5, 10, 15, 20, 30].map(n => chip(`data-n="${n}"`, n === S.n, n)).join("")}</div><p class="kick">Tipuri de întrebări la ${esc(S.mat)} <small class="tag">(${esc(pf.d)})</small></p><div class="tabs">${types.map(k => chip(`data-ty="${k}"`, S.ty.has(k), KIND[k])).join("")}</div>`}
-<p class="kick">Dificultate</p><div class="tabs">${LV.map((l, i) => chip(`data-lv="${i}"`, i === S.lv, l)).join("")}</div>
-${paper() ? `<p class="kick">Variante diferite (pentru a nu copia)</p><div class="tabs">${[1, 2, 4, 6].map(n => chip(`data-nv="${n}"`, n === S.nv, n)).join("")}</div>` : ""}<p class="capi" id="cap"></p>
-<button class="btn" id="go" type="button" style="width:100%;margin-top:1rem">✦ Generează testul</button>`;
+  const md = mdl(), types = pf.all.filter(k => k !== "prob" && (!OPEN_KINDS.has(k) || paper())), all = ts.every(t => S.ids.has(t.id));
+  const mdOpts = [{ id: "free", nume: "Liber" }, ...ms.map(m => ({ id: m.id, nume: m.nume }))];
+  $("#cfg").innerHTML = `<h3><span class="num">1</span> Alege lecția</h3>
+<div class="fgrid"><label class="f">Materia${sel1("m", mats, S.mat)}</label><label class="f">Clasa${sel1("c", cls, S.cl, c => "Clasa " + c)}</label></div>
+<label class="f">Capitolul${sel1("k", chs, S.kp)}</label>
+<div class="thead"><span class="kick">Temele din capitol</span><button type="button" class="btn o s" data-all="1">${all ? "Doar prima" : "Tot capitolul"}</button></div>
+<div class="tl">${ts.map(t => `<button type="button" class="tr" data-t="${t.id}" aria-pressed="${S.ids.has(t.id)}"><i></i><span>${esc(t.tema)}</span></button>`).join("")}</div>
+<h3 class="h2n"><span class="num">2</span> Setează testul</h3>${th ? `<p class="kick">Pentru cine</p><div class="tabs seg">${chip('data-mode="train"', S.mode === "train", "Antrenament")}${chip('data-mode="paper"', S.mode === "paper", "Test pe hârtie")}</div>` : ""}
+<label class="f">Modelul testului<select data-f="md">${mdOpts.map(m => `<option value="${esc(m.id)}"${m.id === S.md ? " selected" : ""}>${esc(m.nume)}</option>`).join("")}</select></label>
+${md ? `<p class="capi">${md.parts.length} părți · ${md.parts.reduce((a, p) => a + p.it.length, 0)} itemi · ${total(md)} puncte${paper() ? ` · ${md.minute} minute` : ""}${paper() ? "" : ". În antrenament apar doar itemii care se corectează automat."}</p>` : `<p class="kick">Număr de întrebări</p><div class="tabs">${[5, 10, 15, 20, 30].map(n => chip(`data-n="${n}"`, n === S.n, n)).join("")}</div><div id="tyw"><p class="kick">Tipuri de întrebări</p><div class="tabs">${types.map(k => chip(`data-ty="${k}"`, S.ty.has(k), KIND[k])).join("")}</div></div>`}
+<p class="kick">Dificultate</p><div class="tabs seg">${LV.map((l, i) => chip(`data-lv="${i}"`, i === S.lv, l)).join("")}</div>
+${paper() ? `<p class="kick">Variante diferite</p><div class="tabs">${[1, 2, 4, 6].map(n => chip(`data-nv="${n}"`, n === S.nv, n)).join("")}</div>` : ""}<p class="capi" id="cap"></p>
+<button class="btn" id="go" type="button" style="width:100%;margin-top:1.1rem">✦ Generează testul${aiReady() ? " cu AI" : ""}</button>`;
   updCap();
 };
-async function updCap() { // câte întrebări permite lecția aleasă
-  const tok = ++capTok, el = $("#cap"), ls = sel(); if (!el || !ls.length) return; el.textContent = "Se analizează lecția…";
+async function updCap() { // ce tipuri permite lecția aleasă (cele indisponibile dispar)
+  const tok = ++capTok, el = $("#cap"), ls = sel(); if (!el || !ls.length) return;
   try {
     const T = await texts(ls); if (tok !== capTok) return; const c = capacity(merge(T.map(PL)), [...S.ids].sort().join("+") + ":" + T.map(l => l.text.length + "/" + (l.ai?.ts || 0)).join(","));
-    el.innerHTML = `Din temele alese se pot forma: <b>${c.mcq}</b> grilă · <b>${c.tf}</b> adevărat/fals · <b>${c.blank}</b> completări · <b>${c.match}</b> asocieri · <b>${c.open}</b> răspunsuri scurte · probleme: ${c.num ? "<b>✓</b> cu numere noi la fiecare test" : "—"}${c.prob ? ` · <b>${c.prob}</b> cu rezolvare din manual` : ""}`;
-    document.querySelectorAll("#cfg [data-ty]").forEach(b => b.classList.toggle("off", !(c[b.dataset.ty] > 0)));
-    const tot = c.mcq + c.tf + c.blank + c.match + (c.num ? 20 : 0); document.querySelectorAll("#cfg [data-n]").forEach(b => b.classList.toggle("off", +b.dataset.n > tot));
+    const ai = aiReady(), bs = [...document.querySelectorAll("#cfg [data-ty]")];
+    bs.forEach(b => { b.hidden = !ai && !(c[b.dataset.ty] > 0); });
+    const vis = bs.filter(b => !b.hidden).map(b => b.dataset.ty);
+    if (vis.length && !vis.some(t => S.ty.has(t))) { S.ty = new Set(vis.slice(0, 3)); saveS(); }
+    bs.forEach(b => b.setAttribute("aria-selected", S.ty.has(b.dataset.ty)));
+    if ($("#tyw")) $("#tyw").hidden = !vis.length;
+    const tot = c.mcq + c.tf + c.blank + c.match + (c.num ? 20 : 0); document.querySelectorAll("#cfg [data-n]").forEach(b => b.classList.toggle("off", !ai && +b.dataset.n > tot));
+    el.textContent = !ai && !mdl() && tot < S.n ? `Din lecția aleasă se pot forma cam ${tot} întrebări.` : "";
   } catch (e) { if (tok === capTok) el.textContent = ""; }
 }
+$("#cfg").onchange = e => {
+  const t = e.target, f = t.dataset.f; if (!f) return; const v = t.value;
+  if (f === "m") { S.mat = v; S.cl = S.kp = ""; S.ids = new Set(); S.md = "free"; S.ty = new Set(profile(v).def); } if (f === "c") { S.cl = v; S.kp = ""; S.ids = new Set(); } if (f === "k") { S.kp = v; S.ids = new Set(); } if (f === "md") S.md = v;
+  saveS(); drawCfg();
+};
 $("#cfg").onclick = e => {
   const b = e.target.closest("button"); if (!b) return; const d = b.dataset;
   if (b.id === "go") return make();
@@ -58,22 +77,48 @@ $("#cfg").onclick = e => {
   saveS(); drawCfg();
 };
 /* ---------- generare ---------- */
+const RANK = { mcq: 0, tf: 1, match: 2, blank: 3, num: 4, open: 5, prob: 6 }, FALL = ["mcq", "blank", "tf", "match", "open"];
+const HEAD = { mcq: ["Grile", "Alege varianta corectă."], tf: ["Adevărat sau fals", "Stabilește dacă afirmația este adevărată sau falsă."], match: ["Asocieri", "Asociază fiecare noțiune cu explicația potrivită."], blank: ["Completări", "Completează spațiile libere."], num: ["Probleme de calcul", "Rezolvă și scrie rezultatul."], open: ["Răspunsuri scurte", "Răspunde cu propriile cuvinte."], prob: ["Probleme cu rezolvare", "Scrie rezolvarea completă."] };
+const GL = ["q", "k", "src", "ok", "p", "sc"];
+function group(g) { // exerciții de același tip, unul lângă altul (în cadrul fiecărei părți)
+  const o = g.q.map((_, i) => i).sort((a, b) => ((g.sc ? g.sc[a] - g.sc[b] : 0) || (RANK[g.q[a].t] ?? 9) - (RANK[g.q[b].t] ?? 9) || a - b));
+  GL.forEach(f => { if (g[f]) g[f] = o.map(i => g[f][i]); }); return g;
+}
 async function make() {
   if (busy) return; const l0 = sel(); if (!l0.length) return toast("Alege o temă");
-  busy = true; const go = $("#go"); go.disabled = true; go.textContent = "Se pregătește…";
-  try { const ls = await texts(l0); meta = { materie: S.mat, clasa: S.cl, tema: ls.map(l => l.tema.replace(/ \(exemplu\)$/, "")).join(" + "), cap: S.kp }; makeLocal(ls); } catch (e) { toast(e.message || "Eroare"); }
-  busy = false; const g2 = $("#go"); if (g2) { g2.disabled = false; g2.textContent = "✦ Generează testul"; }
+  busy = true; const go = $("#go"); go.disabled = true; go.textContent = aiReady() ? "AI creează testul…" : "Se pregătește…";
+  try { const ls = await texts(l0); meta = { materie: S.mat, clasa: S.cl, tema: ls.map(l => l.tema.replace(/ \(exemplu\)$/, "")).join(" + "), cap: S.kp }; await makeTest(ls); } catch (e) { toast(e.message || "Eroare"); }
+  busy = false; const g2 = $("#go"); if (g2) { g2.disabled = false; g2.textContent = "✦ Generează testul" + (aiReady() ? " cu AI" : ""); }
 }
-function makeLocal(ls) {
-  P = merge(ls.map(PL)); const key = [...S.ids].sort().join("+"), H = hist(), h = new Set(H[key] || []), nv = paper() ? S.nv : 1, md = mdl(); V = []; vi = 0;
+const typesNow = () => { const pf = profile(S.mat); let ty = [...S.ty].filter(t => pf.all.includes(t) && t !== "prob" && (paper() || !OPEN_KINDS.has(t))); return ty.length ? ty : pf.def; };
+async function aiBuild(ls, md, avoid, h) { // AI compune întrebările; structura (tipuri, părți, punctaj) vine din model sau din setări
+  const slots = [];
+  if (md) md.parts.forEach((part, pi) => part.it.forEach(sl => { const k = sl.k.find(x => paper() || !OPEN_KINDS.has(x)); if (k) slots.push({ k, p: sl.p, sc: pi }); }));
+  else { const ty = typesNow(); for (let i = 0; i < S.n; i++) slots.push({ k: ty[i % ty.length], p: 1, sc: 0 }); }
+  const counts = {}; slots.forEach(x => { if (x.k !== "compose") counts[x.k] = (counts[x.k] || 0) + 1; });
+  const res = await composeTest(ls, counts, { materie: S.mat, clasa: S.cl, level: S.lv, avoid });
+  const g = { q: [], k: [], src: [], p: [], sc: [], sigs: [], total: 0, ai: true }; if (md) g.parts = md.parts.map(x => ({ t: x.t, d: x.d }));
+  const used = new Set(), push = (x, s) => { g.q.push(x.q); g.k.push(x.k); g.src.push(x.src); g.p.push(s.p); g.sc.push(s.sc); };
+  for (const s of slots) {
+    let it = res[s.k]?.shift(); if (it) { push(it, s); continue; }
+    if (s.k === "compose") { const r = generateExam(P, { parts: [{ t: "", d: "", it: [{ k: ["compose"], p: s.p }] }] }, { level: S.lv, tema: meta.tema }); if (r.q[0]) push({ q: r.q[0], k: r.k[0], src: r.src[0] }, s); continue; }
+    const r = generate(P, { n: 1, types: [s.k], level: S.lv, hist: h, avoid: used }); if (r.total) { r.used.forEach(u => used.add(u)); push({ q: r.q[0], k: r.k[0], src: r.src[0] }, s); continue; } // lipsește de la AI → generatorul local
+    const alt = FALL.find(k => res[k]?.length); if (alt) push(res[alt].shift(), s);
+  }
+  g.total = g.q.length; return g;
+}
+async function makeTest(ls) {
+  P = merge(ls.map(PL)); const key = [...S.ids].sort().join("+"), H = hist(), h = new Set(H[key] || []), nv = paper() ? S.nv : 1, md = mdl(); V = []; vi = 0; let aiFail = "";
   for (let i = 0; i < nv; i++) {
-    const pf = profile(S.mat); let ty = [...S.ty].filter(t => pf.all.includes(t) && (paper() || !OPEN_KINDS.has(t))); if (!ty.length) ty = pf.def;
-    const g = md ? generateExam(P, md, { level: S.lv, hist: h, noOpen: !paper(), tema: meta.tema }) : generate(P, { n: S.n, types: ty, level: S.lv, hist: h });
-    g.sigs.forEach(s => h.add(s)); if (md) { g.md = md; } V.push(g);
+    let g = null;
+    if (aiReady()) { try { g = await aiBuild(ls, md, V.flatMap(x => x.q.map(q => q.q)), h); if (g.total < 2) { g = null; aiFail = "AI nu a găsit destul material în lecție."; } } catch (e) { aiFail = e.message; } }
+    if (!g) { const ty = typesNow(); g = md ? generateExam(P, md, { level: S.lv, hist: h, noOpen: !paper(), tema: meta.tema }) : generate(P, { n: S.n, types: ty, level: S.lv, hist: h }); g.sigs.forEach(x => h.add(x)); }
+    if (md) g.md = md; V.push(group(g));
   }
   H[key] = [...h].slice(-600); try { localStorage.tsig = JSON.stringify(H); } catch (e) { }
+  if (aiFail) toast(aiFail + " Am folosit generatorul local.");
   if (!V[0].total) { $("#out").innerHTML = ""; return toast("Lecția nu are destulă informație pentru tipurile alese"); }
-  const want = md ? md.parts.reduce((a, p) => a + p.it.length, 0) : S.n; if (V[0].total < want) toast(`Lecția permite doar ${V[0].total} din ${want} întrebări`);
+  const want = md ? md.parts.reduce((a, p) => a + p.it.length, 0) : S.n; if (V[0].total < want && !aiFail) toast(`Lecția permite doar ${V[0].total} din ${want} întrebări`);
   drawTest(); $("#out").scrollIntoView({ behavior: "smooth" });
 }
 /* ---------- test ---------- */
@@ -83,8 +128,8 @@ const qHtml = (q, i, k, ev, p, N) => `<li class="qs" data-i="${i}"><div class="q
 ${ev ? `<p class="key">${q.t === "open" || q.t === "prob" ? "Barem" : "Răspuns corect"}: <b>${esc(correct(q, k))}</b></p>` : ""}<div class="fb" hidden></div></li>`;
 function drawTest() {
   const v = V[vi], ev = paper(), T = v.q.length, pts = v.q.reduce((a, _, i) => a + (v.p?.[i] || 1), 0);
-  let body = ""; v.q.forEach((q, i) => { if (v.parts && (i === 0 || v.sc[i] !== v.sc[i - 1])) { const pt = v.parts[v.sc[i]]; body += `${i ? "</ol>" : ""}<div class="part"><h3>${esc(pt.t)}</h3><p class="tag">${esc(pt.d)}</p></div><ol class="qs-list" start="${i + 1}">`; } else if (!v.parts && i === 0) body += '<ol class="qs-list">'; body += qHtml(q, i, v.k[i], ev, v.p?.[i] || 1, T); });
-  $("#out").innerHTML = `<div class="card tst"><div class="th"><div><span class="pill">${esc(meta.materie)} · cl. ${esc(meta.clasa)}</span><h2>${esc(meta.tema)}</h2><p class="tag">${T} întrebări${v.md ? ` · ${pts} puncte · ${esc(v.md.nume)}` : ""} · unic, creat doar din textul lecției</p></div></div>
+  let body = ""; v.q.forEach((q, i) => { if (v.parts && (i === 0 || v.sc[i] !== v.sc[i - 1])) { const pt = v.parts[v.sc[i]]; body += `${i ? "</ol>" : ""}<div class="part"><h3>${esc(pt.t)}</h3><p class="tag">${esc(pt.d)}</p></div><ol class="qs-list" start="${i + 1}">`; } else if (!v.parts && (i === 0 || q.t !== v.q[i - 1].t)) { const hh = HEAD[q.t] || ["Întrebări", ""]; body += `${i ? "</ol>" : ""}<div class="part sub"><h3>${hh[0]}</h3><p class="tag">${hh[1]}</p></div><ol class="qs-list" start="${i + 1}">`; } body += qHtml(q, i, v.k[i], ev, v.p?.[i] || 1, T); });
+  $("#out").innerHTML = `<div class="card tst"><div class="th"><div><span class="pill">${esc(meta.materie)} · cl. ${esc(meta.clasa)}</span><h2>${esc(meta.tema)}</h2><p class="tag">${T} întrebări${v.md ? ` · ${pts} puncte · ${esc(v.md.nume)}` : ""} · ${v.ai ? "✦ creat cu AI din textul lecției" : "creat din textul lecției"}</p></div></div>
 ${ev && V.length > 1 ? `<div class="tabs">${V.map((_, i) => chip(`data-v="${i}"`, i === vi, "Varianta " + (i + 1))).join("")}</div>` : ""}
 ${ev ? "" : `<div class="pbar"><span id="pt">0 / ${T} răspunsuri</span><i><u id="pf"></u></i></div>`}
 ${body}</ol><div id="res"></div>

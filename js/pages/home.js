@@ -1,4 +1,4 @@
-import { $, esc, toast, whenRole, modal, sheet, can, role, user, upload, safeUrl, db, collection, getDocs, addDoc, deleteDoc, doc, getDoc, setDoc } from "../core/core.js";
+import { $, esc, toast, whenRole, modal, sheet, viewer, can, role, user, upload, safeUrl, db, collection, getDocs, addDoc, deleteDoc, doc, getDoc, setDoc } from "../core/core.js";
 import { CATS, BELLS, HERO, HERO_MS, STATS } from "../core/config.js";
 const all = async c => (await getDocs(collection(db, c))).docs.map(d => ({ id: d.id, ...d.data() }));
 const p2 = n => String(n).padStart(2, "0"), iso = d => d.toISOString().slice(0, 10), fmt = d => new Date(d).toLocaleDateString("ro-RO", { day: "numeric", month: "short", year: "numeric" });
@@ -18,11 +18,11 @@ const mine = a => role === "admin" || (user && a.uid === user.uid);
 const drawA = () => {
   $("#tabs").innerHTML = ["All", ...CATS].map(t => `<button aria-selected="${t === filt}" data-t="${esc(t)}">${t === "All" ? "Toate" : t}</button>`).join("");
   const l = A.filter(a => filt === "All" || a.c === filt);
-  $("#posts").innerHTML = l.slice(0, n).map(a => `<article class="post" tabindex="0" data-id="${a.id}">${a.img ? `<div class="cv" style="background-image:url('${esc(safeUrl(a.img))}')"></div>` : `<div class="cv ph">${esc(a.c[0])}</div>`}<div class="pb"><span class="pill">${esc(a.c)}</span><h3>${esc(a.t)}</h3><p>${esc(a.b)}</p><div class="pf"><span>${fmt(a.d)}</span>${can("anunturi") && mine(a) ? `<button class="btn o s" data-del="anunturi/${a.id}">Șterge</button>` : "<span>Citește →</span>"}</div></div></article>`).join("") || '<p class="tag mid">Nu sunt anunțuri.</p>';
+  $("#posts").innerHTML = l.slice(0, n).map(a => `<article class="post" tabindex="0" data-id="${a.id}"><div class="cvw"><span class="pill">${esc(a.c)}</span>${a.img ? `<div class="cv" style="background-image:url('${esc(safeUrl(a.img))}')"></div>` : `<div class="cv ph">${esc(a.c[0])}</div>`}</div><div class="pb"><h3>${esc(a.t)}</h3><p>${esc(a.b)}</p><div class="pf"><span class="dt">${fmt(a.d)}</span>${can("anunturi") && mine(a) ? `<button class="btn o s" data-del="anunturi/${a.id}">Șterge</button>` : '<span class="go">Citește <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>'}</div></div></article>`).join("") || '<p class="tag mid">Nu sunt anunțuri.</p>';
   $("#more").hidden = l.length <= n;
 };
 const loadA = async () => { A = (await all("anunturi")).sort((x, y) => (y.d || "").localeCompare(x.d || "")); drawA(); };
-const open = c => { const a = A.find(x => x.id === c.dataset.id); a && sheet(a.t, `${a.img ? `<img alt="" src="${esc(safeUrl(a.img))}">` : ""}<p><span class="pill">${esc(a.c)}</span> <span class="tag">${fmt(a.d)}</span></p><p>${esc(a.b).replace(/\n/g, "<br>")}</p>`); };
+const open = c => { const a = A.find(x => x.id === c.dataset.id); a && viewer("ann", `${a.img ? `<div class="ah" style="background-image:url('${esc(safeUrl(a.img))}')"></div>` : '<div class="ah ph"></div>'}<div class="ab"><div class="am"><span class="pill">${esc(a.c)}</span><span class="tag">${fmt(a.d)}</span></div><h2>${esc(a.t)}</h2><div class="at">${esc(a.b)}</div></div>`); };
 $("#tabs").onclick = e => { if (e.target.dataset.t) { filt = e.target.dataset.t; n = 6; drawA(); } };
 $("#more").onclick = () => { n += 6; drawA(); };
 $("#posts").onclick = e => { const c = e.target.closest(".post"); if (c && !e.target.closest("[data-del]")) open(c); };

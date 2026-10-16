@@ -1,14 +1,14 @@
-import { $, esc, toast, whenRole, modal, sheet, can, user, db, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc, deleteField, doc } from "../core/core.js";
+import { $, esc, toast, whenRole, modal, sheet, can, user, db, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc, deleteField, doc, writeBatch } from "../core/core.js";
 import { aiOn, analyzeLesson, tocAI, pause } from "../teste/ai.js";
 import { SUBJECTS, CLASSES, classesOf, canon } from "../core/config.js";
 import { parse, parseC, statOf, clean } from "../teste/engine.js";
 import { DEMO } from "../teste/demo.js";
-let L = [], RES = [], fm = "", fc = "", fk = "";
+let L = [], RES = [], fm = "", fc = "", fk = "", selMode = false, SEL = new Set(), VIS = [];
 const idx = s => { const i = SUBJECTS.indexOf(s); return i < 0 ? 99 : i; }, ci = c => CLASSES.indexOf(c), NC = (a, b) => String(a).localeCompare(String(b), "ro", { numeric: true });
 const opt = (a, v, all) => (all ? `<option value="">${all}</option>` : "") + a.map(x => `<option value="${esc(x)}"${x === v ? " selected" : ""}>${esc(x)}</option>`).join("");
 const chap = l => l.capitol || "Fără capitol", enc = encodeURIComponent;
 const stats = l => { const s = l.st || (l.text ? statOf(parseC(l.text)) : null); return s ? `${s.s} propoziții · ${s.d} definiții · ${s.f} formule · ${s.p} probleme` : ""; };
-const card = x => `<article class="post lc" data-id="${x.id}"><div class="pb"><h3>${esc(x.tema)}</h3><p>${stats(x)}${x.aiok ? " · ✦ AI" : ""}</p>${x.sursa ? `<p class="tag">Din manual: ${esc(x.sursa)}</p>` : ""}<div class="pf"><a class="btn s" href="teste?l=${x.id}">Generează test</a>${can("resurse") && !x.demo ? `<span class="row"><button class="btn o s" data-ed="${x.id}">Editează</button><button class="btn o s" data-rm="${x.id}">Șterge</button></span>` : ""}${aiOn() && can("resurse") && !x.demo ? `<button class="btn o s" data-ai="${x.id}">${x.aiok ? "✦ Refă cu AI" : "✦ Analizează cu AI"}</button>` : ""}</div></div></article>`;
+const card = x => `<article class="post lc${selMode ? " pick" + (SEL.has(x.id) ? " on" : "") : ""}" data-id="${x.id}"${selMode ? ` data-pk="${x.id}"` : ""}>${selMode ? '<span class="sck"></span>' : ""}<div class="pb"><h3>${esc(x.tema)}</h3><p>${stats(x)}${x.aiok ? " · ✦ AI" : ""}</p>${x.sursa ? `<p class="tag">Din manual: ${esc(x.sursa)}</p>` : ""}${selMode ? "" : `<div class="pf"><a class="btn s" href="teste?l=${x.id}">Generează test</a>${can("resurse") && !x.demo ? `<span class="row"><button class="btn o s" data-ed="${x.id}">Editează</button><button class="btn o s" data-rm="${x.id}">Șterge</button></span>` : ""}${aiOn() && can("resurse") && !x.demo ? `<button class="btn o s" data-ai="${x.id}">${x.aiok ? "✦ Refă cu AI" : "✦ Analizează cu AI"}</button>` : ""}</div>`}</div></article>`;
 const draw = () => {
   const ms = SUBJECTS.filter(s => L.some(l => l.materie === s)); if (fm && !ms.includes(fm)) fm = "";
   const inM = L.filter(l => !fm || l.materie === fm), cs = CLASSES.filter(c => inM.some(l => l.clasa === c)); if (fc && !cs.includes(fc)) fc = "";
@@ -16,11 +16,13 @@ const draw = () => {
   $("#fm").innerHTML = opt(ms, fm, "Toate materiile"); $("#fc").innerHTML = '<option value="">Toate clasele</option>' + cs.map(c => `<option value="${c}"${c === fc ? " selected" : ""}>Clasa ${c}</option>`).join(""); $("#fk").innerHTML = opt(ks, fk, "Toate capitolele");
   const G = [];
   for (const x of inC.filter(x => !fk || chap(x) === fk).sort((a, b) => idx(a.materie) - idx(b.materie) || ci(a.clasa) - ci(b.clasa))) {
-    let g = G.at(-1); if (!g || g.m !== x.materie || g.c !== x.clasa) G.push(g = { m: x.materie, c: x.clasa, ch: new Map() });
+    let g = G.at(-1); if (!g || g.m !== x.materie || g.c !== x.clasa) G.push(g = { m: x.materie, c: x.clasa, ch: new Map(), demo: !!x.demo });
     if (!g.ch.has(chap(x))) g.ch.set(chap(x), []); g.ch.get(chap(x)).push(x);
   }
   const first = ls => Math.min(...ls.map(x => x.pag ?? 1e9));
-  $("#ll").innerHTML = G.map(g => `<section class="grp"><p class="kick">${esc(g.m)} · clasa ${esc(g.c)}</p>${[...g.ch].sort((a, b) => first(a[1]) - first(b[1]) || NC(a[0], b[0])).map(([name, ls]) => `<div class="chh"><div><h3>${esc(name)}</h3><span class="tag">${ls.length} ${ls.length === 1 ? "temă" : "teme"}</span></div><span class="row"><a class="btn o s" href="teste?m=${enc(g.m)}&c=${enc(g.c)}&k=${enc(name)}">Test din tot capitolul</a>${can("resurse") && !ls[0].demo ? `<button class="btn o s" data-rnc="${esc(g.m)}|${esc(g.c)}|${esc(name)}">Redenumește</button>` : ""}${aiOn() && can("resurse") && !ls[0].demo ? `<button class="btn o s" data-aic="${esc(g.m)}|${esc(g.c)}|${esc(name)}">✦ AI pe capitol</button>` : ""}</span></div><div class="posts">${ls.sort((a, b) => (a.pag ?? 1e9) - (b.pag ?? 1e9) || NC(a.tema, b.tema)).map(card).join("")}</div>`).join("")}</section>`).join("") || '<p class="tag mid">Nu sunt lecții. Adaugă prima lecție cu butonul +.</p>';
+  $("#ll").innerHTML = G.map(g => `<section class="grp"><p class="kick gh"><span>${esc(g.m)} · clasa ${esc(g.c)}</span>${can("resurse") && !selMode && !g.demo ? `<button class="btn o s dng" data-rg="${esc(g.m)}|${esc(g.c)}">Șterge toată clasa</button>` : ""}</p>${[...g.ch].sort((a, b) => first(a[1]) - first(b[1]) || NC(a[0], b[0])).map(([name, ls]) => `<div class="chh"><div><h3>${esc(name)}</h3><span class="tag">${ls.length} ${ls.length === 1 ? "temă" : "teme"}</span></div><span class="row"><a class="btn o s" href="teste?m=${enc(g.m)}&c=${enc(g.c)}&k=${enc(name)}">Test din tot capitolul</a>${can("resurse") && !ls[0].demo && !selMode ? `<button class="btn o s" data-rnc="${esc(g.m)}|${esc(g.c)}|${esc(name)}">Redenumește</button><button class="btn o s dng" data-rmc="${esc(g.m)}|${esc(g.c)}|${esc(name)}">Șterge capitolul</button>` : ""}${aiOn() && can("resurse") && !ls[0].demo && !selMode ? `<button class="btn o s" data-aic="${esc(g.m)}|${esc(g.c)}|${esc(name)}">✦ AI pe capitol</button>` : ""}</span></div><div class="posts">${ls.sort((a, b) => (a.pag ?? 1e9) - (b.pag ?? 1e9) || NC(a.tema, b.tema)).map(card).join("")}</div>`).join("")}</section>`).join("") || '<p class="tag mid">Nu sunt lecții. Adaugă prima lecție cu butonul +.</p>';
+  VIS = inC.filter(x => (!fk || chap(x) === fk) && !x.demo).map(x => x.id); SEL = new Set([...SEL].filter(id => L.some(x => x.id === id)));
+  const sb = $("#selbar"); if (sb) { sb.hidden = !can("resurse") || !L.some(x => !x.demo); sb.classList.toggle("act", selMode); sb.innerHTML = selMode ? `<span class="tag">${SEL.size} ${SEL.size === 1 ? "selectată" : "selectate"}</span><button class="btn o s" data-sa="1">${VIS.length && VIS.every(id => SEL.has(id)) ? "Deselectează tot" : "Selectează tot"}</button><button class="btn s dng" data-sd="1"${SEL.size ? "" : " disabled"}>Șterge selectate</button><button class="btn o s" data-sx="1">Renunță</button>` : '<button class="btn o s" data-sm="1">Selectează mai multe</button>'; }
   $("#demoBtn").hidden = !(can("resurse") && L.some(x => x.demo)); $("#dedupBtn").hidden = !can("admin") || L.some(x => x.demo);
 };
 const prep = x => ({ ...x, materie: canon(x.materie) });
@@ -109,18 +111,15 @@ async function findTocPages(pdf) { // caută singur pagina „Cuprins”
 async function renderPage(pdf, n, canvas) { const pg = await pdf.getPage(n), v0 = pg.getViewport({ scale: 1 }), sc = Math.min(2, 760 / v0.width), v = pg.getViewport({ scale: sc }); canvas.width = v.width; canvas.height = v.height; await pg.render({ canvasContext: canvas.getContext("2d"), viewport: v }).promise; }
 const tocText = T => { let cur = null, o = []; for (const x of T) { if ((x.ch || "") !== cur) { cur = x.ch || ""; if (cur) o.push("# " + cur); } o.push(`${x.t} | ${x.p}-${x.e}`); } return o.join("\n"); };
 /* ---------- adăugare ---------- */
-const start = () => { const d = sheet("Adaugă lecții", '<p class="tag">Alege cum aduci textul manualului:</p><button class="btn" id="o1" type="button" style="width:100%;margin-bottom:.7rem">📘 Din manualul de pe site (automat)</button><button class="btn o" id="o2" type="button" style="width:100%">✍️ Lipesc textul sau aleg un PDF</button>'); d.querySelector("#o1").onclick = () => { d.close(); importMan(); }; d.querySelector("#o2").onclick = () => { d.close(); form(); }; };
+const start = () => { const d = sheet("Adaugă lecții", '<button class="btn" id="o1" type="button" style="width:100%;margin-bottom:.7rem">📘 Din manual (site sau PDF)</button><button class="btn o" id="o2" type="button" style="width:100%">✍️ Lipesc textul temei</button>'); d.querySelector("#o1").onclick = () => { d.close(); importMan(); }; d.querySelector("#o2").onclick = () => { d.close(); form(); }; };
 const clsOpt = (m, v) => opt(classesOf(m), v);
 function importMan() {
   const d = modal("Import din manual", `<div class="grid"><label>Materia<select name="m">${opt(SUBJECTS, fm || undefined)}</select></label><label>Clasa<select name="c">${clsOpt(fm || SUBJECTS[0], fc)}</select></label></div>
-<label>Manualul de pe site<select name="man"></select></label><p class="tag" id="mn"></p><label>sau alege fișierul PDF de pe telefon<input name="f" type="file" accept="application/pdf"></label>
-<p class="kick" style="margin-top:1rem">Cuprinsul manualului (capitole și teme)</p>
-<div class="grid"><label>Cuprinsul e la pagina (de la)<input name="t1" type="number" min="1" placeholder="ex. 3"></label><label>până la pagina<input name="t2" type="number" min="1" placeholder="ex. 4"></label></div>
-<label>Diferența dintre numărul tipărit și pagina din PDF <small class="tag">(gol = o calculez eu)</small><input name="off" type="number" placeholder="automat"></label>
-<div class="row" style="margin:.2rem 0 1rem"><button type="button" class="btn s" id="toc">Citește cuprinsul</button>${aiOn() ? '<button type="button" class="btn s" id="tocai">✦ Citește cu AI</button>' : ""}<button type="button" class="btn o s" id="pv">Vezi paginile manualului</button></div>
+<label>Manualul de pe site<select name="man"></select></label><p class="tag" id="mn"></p><label>sau fișierul PDF<input name="f" type="file" accept="application/pdf"></label>
+<span class="sub">Cuprinsul</span><div class="grid"><label>De la pagina<input name="t1" type="number" min="1" placeholder="ex. 3"></label><label>Până la pagina<input name="t2" type="number" min="1" placeholder="ex. 4"></label></div><input name="off" type="hidden"><input name="k" type="hidden">
+<div class="row" style="margin:0 0 1.1rem"><button type="button" class="btn s" id="toc">Citește manualul</button><button type="button" class="btn o s" id="pv">Vezi paginile manualului</button></div>
 <div id="pvbox" hidden><div class="row pvc"><button type="button" class="btn o s" id="pp" aria-label="Pagina anterioară">‹</button><input id="pn" type="number" min="1" value="1" aria-label="Numărul paginii"><button type="button" class="btn o s" id="pnx" aria-label="Pagina următoare">›</button><button type="button" class="btn s" id="st1">Cuprinsul începe aici</button><button type="button" class="btn s" id="st2">Se termină aici</button></div><canvas id="pvc"></canvas></div>
-<label>Capitolul pentru temele fără capitol <small class="tag">(opțional)</small><input name="k" placeholder="ex. Capitolul 1. Mecanica"></label>
-<label>Capitolele și temele — un rând = o temă: <b>Titlu | pagina de la – până la</b>. Un rând care începe cu <b>#</b> este un capitol nou.<textarea name="t" rows="9" placeholder="# Capitolul 1. Optica&#10;Optica geometrică | 45-52&#10;Lentilele | 53-60&#10;# Capitolul 2. Electricitatea&#10;Curentul electric | 61-70"></textarea></label>`, async f => {
+<label>Capitolele și temele<textarea name="t" rows="9" placeholder="# Capitolul 1. Optica&#10;Optica geometrică | 45-52&#10;Lentilele | 53-60"></textarea></label>`, async f => {
     const E = f.elements, src = E.f.files[0] || (RES.find(r => r.id === E.man.value) || {}).url; if (!src) throw new Error("Alege un manual sau un fișier PDF");
     let ch = E.k.value.trim(); const rows = [];
     for (const raw of E.t.value.split("\n")) { const l = raw.trim(); if (!l) continue; if (l.startsWith("#")) { ch = l.replace(/^#+\s*/, "").trim(); continue; } const m = /^(.+?)\s*[|;]\s*(\d+)(?:\s*[-–]\s*(\d+))?\s*$/.exec(l); if (m && !rows.some(r => r.ch === ch && nrm(r.t) === nrm(m[1]) && r.a === +m[2])) rows.push({ ch, t: m[1].trim(), a: +m[2], b: +(m[3] || m[2]) }); }
@@ -157,23 +156,35 @@ function importMan() {
   E.man.onchange = E.f.onchange = () => { pdfP = null; };
 }
 const form = o => {
-  const d = modal(o ? "Editează lecția" : "Lecție nouă", `<div class="grid"><label>Materia<select name="m">${opt(SUBJECTS, o?.materie || fm || undefined)}</select></label><label>Clasa<select name="c">${clsOpt(o?.materie || fm || SUBJECTS[0], o?.clasa || fc)}</select></label></div>
+  const d = modal(o ? "Editează lecția" : "Lipesc textul temei", `<div class="grid"><label>Materia<select name="m">${opt(SUBJECTS, o?.materie || fm || undefined)}</select></label><label>Clasa<select name="c">${clsOpt(o?.materie || fm || SUBJECTS[0], o?.clasa || fc)}</select></label></div>
 <label>Capitolul<input name="k" list="chl" value="${esc(o?.capitol || (fk && fk !== "Fără capitol" ? fk : ""))}" placeholder="ex. Capitolul 1. Optica"></label><datalist id="chl"></datalist>
 <label>Tema<input name="t" required value="${esc(o?.tema || "")}" placeholder="ex. Optica geometrică"></label>
-<details class="how"><summary>Cum scriu lecția?</summary><p>Lipește textul din manual. Un rând = o idee. Generatorul recunoaște singur:</p><ul><li><b>Definiții:</b> „Termen este …”, „Se numește … ”, „Prin … se înțelege …”, „Definiție: …”</li><li><b>Formule:</b> „Viteza: v = d / t”</li><li><b>Probleme rezolvate:</b> rândul „Problemă…”, apoi „Rezolvare: F = m · a = 2 · 3 = 6 N” și „Răspuns: …”. Din ele se fac probleme cu numere noi la fiecare test.</li><li>Poți scrie și direct o problemă-șablon:<br><code>@problema Un corp are masa {m:2-10} kg și accelerația {a:1-5} m/s². Calculează forța. =&gt; m*a | N</code></li></ul></details>
-<div class="grid"><label>Extrage din PDF (opțional)<input name="f" type="file" accept="application/pdf"></label><label>Paginile<span class="row" style="flex-wrap:nowrap"><input name="p1" type="number" min="1" placeholder="de la"><input name="p2" type="number" min="1" placeholder="până la"></span></label></div><button type="button" class="btn o s" id="imp">Extrage textul din PDF</button>
-<label style="margin-top:1rem">Textul lecției<textarea name="x" rows="12" required>${esc(o?.text || "")}</textarea></label><p class="tag" id="an"></p>`, async f => {
+<label>Textul lecției<textarea name="x" rows="12" required>${esc(o?.text || "")}</textarea></label>`, async f => {
     const E = f.elements, v = { materie: E.m.value, clasa: E.c.value, capitol: E.k.value.trim(), tema: E.t.value.trim(), text: E.x.value.trim(), uid: user.uid, ts: Date.now() }; if (o?.sursa) v.sursa = o.sursa; if (o?.pag != null) v.pag = o.pag;
     if (v.text.length < 200) throw new Error("Textul e prea scurt (minim ~200 caractere)");
     await saveLesson(v, o?.id, o && o.text === v.text && o.aiok); toast("Lecție salvată"); load();
   }), E = d.querySelector("form").elements;
   const chl = () => { $("#chl").innerHTML = [...new Set(L.filter(l => l.materie === E.m.value && l.clasa === E.c.value && l.capitol).map(l => l.capitol))].sort(NC).map(c => `<option value="${esc(c)}">`).join(""); };
   E.m.onchange = () => { const c = E.c.value; E.c.innerHTML = clsOpt(E.m.value, c); chl(); }; E.c.onchange = chl; chl();
-  const an = () => { const P = parse(E.x.value); $("#an").textContent = `Analiză: ${P.sents.length} propoziții utile · ${P.defs.length} definiții · ${P.forms.length} formule · ${Math.max(P.probs.length, P.sols.length)} probleme`; }; E.x.oninput = an; an();
-  $("#imp").onclick = async () => { const file = E.f.files[0]; if (!file) return toast("Alege un fișier PDF"); const b = $("#imp"); b.disabled = true; b.textContent = "Se extrage…"; try { E.x.value = await pagesText(await openPdf(file), +E.p1.value || 1, +E.p2.value || (+E.p1.value || 1) + 4); an(); toast("Text extras. Verifică-l și corectează-l."); } catch (e) { toast(e.message || "Nu am putut citi PDF-ul"); } b.disabled = false; b.textContent = "Extrage textul din PDF"; };
 };
 $("#fm").onchange = e => { fm = e.target.value; fc = fk = ""; draw(); }; $("#fc").onchange = e => { fc = e.target.value; fk = ""; draw(); }; $("#fk").onchange = e => { fk = e.target.value; draw(); };
+async function delLessons(ids) { // șterge lecțiile (și textele lor) în grupuri, o singură dată
+  ids = ids.filter(id => { const x = L.find(y => y.id === id); return x && !x.demo; });
+  for (let i = 0; i < ids.length; i += 100) { const b = writeBatch(db); ids.slice(i, i + 100).forEach(id => { b.delete(doc(db, "lectii", id)); b.delete(doc(db, "lectii_text", id)); }); await b.commit(); }
+  SEL = new Set([...SEL].filter(id => !ids.includes(id))); return ids.length;
+}
+const delAsk = async (ids, what) => { if (!ids.length) return toast("Nu e nimic de șters"); if (!confirm(`Ștergi ${what} (${ids.length} ${ids.length === 1 ? "temă" : "teme"})? Nu se poate anula.`)) return; try { const n = await delLessons(ids); toast(`Șterse ${n} teme`); } catch (er) { toast("Nu am putut șterge: " + (er.code || er.message)); } load(); };
+$("#selbar").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return; const d = b.dataset;
+  if (d.sm) { selMode = true; SEL = new Set(); draw(); } else if (d.sx) { selMode = false; SEL = new Set(); draw(); }
+  else if (d.sa) { VIS.every(id => SEL.has(id)) ? VIS.forEach(id => SEL.delete(id)) : VIS.forEach(id => SEL.add(id)); draw(); }
+  else if (d.sd) delAsk([...SEL], "temele selectate").then(() => { selMode = false; draw(); });
+};
 $("#ll").onclick = async e => {
+  const pk = e.target.closest("[data-pk]"); if (pk) { const id = pk.dataset.pk; SEL.has(id) ? SEL.delete(id) : SEL.add(id); return draw(); }
+  const rg = e.target.dataset.rg, rmc = e.target.dataset.rmc;
+  if (rg) { const [m, c] = rg.split("|"); return delAsk(L.filter(x => x.materie === m && x.clasa === c && !x.demo).map(x => x.id), `TOATE temele de la ${m}, clasa ${c}`); }
+  if (rmc) { const [m, c, k] = rmc.split("|"); return delAsk(L.filter(x => x.materie === m && x.clasa === c && chap(x) === k && !x.demo).map(x => x.id), `capitolul „${k}”`); }
   const ed = e.target.dataset.ed, rm = e.target.dataset.rm, rn = e.target.dataset.rnc;
   if (ed) { const x = L.find(y => y.id === ed); form({ ...x, text: x.text ?? (await getDoc(doc(db, "lectii_text", x.id))).data()?.text ?? "" }); }
   if (rm && confirm("Ștergi lecția?")) { await deleteDoc(doc(db, "lectii", rm)); try { await deleteDoc(doc(db, "lectii_text", rm)); } catch (x) { } load(); }

@@ -7,7 +7,7 @@ index.html … (11 pagini)   pagini, adrese fără .html pe GitHub Pages
 css/style.css              tot stilul (bordo + crem, zi/noapte)
 img/                       poze și iconițe
 js/core/                   config.js (setări), firebase.js, core.js (meniu, roluri), theme.js
-js/pages/                  câte un fișier pentru fiecare pagină
+js/pages/                  câte un fișier pentru fiecare pagină (home, info, lectii, teste …)
 js/teste/                  generatorul de teste: engine.js, exam.js, pdf.js, ai.js, demo.js
 firestore.rules            regulile bazei de date (se lipesc în Firebase → Firestore → Rules)
 sw.js, manifest.webmanifest   aplicație instalabilă
@@ -23,7 +23,7 @@ sw.js, manifest.webmanifest   aplicație instalabilă
 Administrator (tot), profesor (anunțuri, resurse, lecții), membru CE (anunțuri, meniul cantinei), vizitator (doar citește). Conturile se creează din Panou. Primul admin: documentul `users/<UID>` cu `email`, `nume`, `role: "admin"`.
 
 ## Generator de teste
-Manualul PDF se încarcă o dată în Resurse („Manual digital”), apoi în Lecții → „Din manualul de pe site” se citește cuprinsul (semne de carte sau pagina „Cuprins”, oriunde în carte) și se importă temele pe capitole. Testele se compun doar din textul lecției, local, în browser; modelele „ca la examen” sunt în `js/teste/exam.js`.
+Testul se compune cu AI din lecțiile alese (când ești autentificat și `AI_URL` e setat); dacă AI nu răspunde, se folosește generatorul local. Exercițiile de același tip sunt grupate. Manualul PDF se încarcă o dată în Resurse („Manual digital”), apoi în Lecții → „Din manualul de pe site” se citește cuprinsul (semne de carte sau pagina „Cuprins”, oriunde în carte) și se importă temele pe capitole. Testele se compun doar din textul lecției, local, în browser; modelele „ca la examen” sunt în `js/teste/exam.js`.
 
 ## Conform regulamentului (Web)
 HTML + CSS + JavaScript simplu, fără framework-uri JS și fără constructori de site; backend doar Firebase; 2 fonturi; disclaimerul în subsolul fiecărei pagini; meta descriere + cuvinte-cheie; Despre, Resurse/Servicii, Contact (telefon, e-mail, adresă, hartă încorporată); meniu pe toate paginile; adaptiv telefon/desktop; legături interne și externe.

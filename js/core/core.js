@@ -65,6 +65,13 @@ function dlg(title, inner) {
   d.showModal(); return d;
 }
 export const sheet = (title, body) => dlg(title, `<div class="sb">${body}</div>`);
+/* fereastră de citire (anunțuri): imagine mare sus, text frumos dedesubt */
+export function viewer(cls, inner) {
+  const d = document.body.appendChild(document.createElement("dialog")); d.className = "modal " + cls;
+  d.innerHTML = `<button type="button" class="xf" aria-label="Închide">${X}</button>${inner}`;
+  d.querySelector(".xf").onclick = () => d.close(); d.onclose = () => d.remove(); d.onclick = e => { if (e.target === d) d.close(); };
+  d.showModal(); return d;
+}
 export function modal(title, body, onSubmit, btn = "Salvează") {
   const d = dlg(title, `<form>${body}<button class="btn">${btn}</button></form>`), f = d.querySelector("form");
   f.onsubmit = async e => { e.preventDefault(); const b = f.querySelector(".btn"); b.disabled = true; try { await onSubmit(f); d.close(); } catch (err) { toast(err.message); b.disabled = false; } };

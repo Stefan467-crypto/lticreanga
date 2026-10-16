@@ -9,8 +9,8 @@
 // Pentru celelalte materii structura este un model apropiat de cel oficial, ușor de ajustat mai jos.
 
 export const KIND = {
-  mcq: "Grilă", tf: "Adevărat / Fals", blank: "Completare", num: "Problemă (calcul)", match: "Asociere",
-  open: "Răspuns scurt / definiție", prob: "Problemă cu rezolvare din manual", compose: "Redactare",
+  mcq: "Grilă", tf: "Adevărat / Fals", blank: "Completare", num: "Problemă de calcul", match: "Asociere",
+  open: "Răspuns scurt", prob: "Problemă cu rezolvare din manual", compose: "Redactare",
 };
 export const OPEN_KINDS = new Set(["open", "prob", "compose"]); // nu se corectează automat → doar „test pe hârtie”
 
