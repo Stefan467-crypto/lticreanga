@@ -85,7 +85,9 @@ ${raw.slice(0, 20000)}`);
 const shuffle = (a, r = Math.random) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const BAD_Q = /(?<!\p{L})(?:în text|din text|text(?:ul|ului|e)?|lecți(?:a|ei|e)|mai sus|de mai sus|manual(?:ul|ului)?|conform|figur(?:a|ii)|fig\.|tabel(?:ul|ului)?|pagin(?:a|ii)|exerci[tț]i(?:ul|ului)|problema \d|activitatea)(?!\p{L})/iu; // întrebarea trebuie să se înțeleagă singură
 const BAD_OPT = /^(?:toate|niciuna|nicio|toate cele|nici una)\b/i;
-const NUMS_OK = new Set(["1", "2", "3", "10", "100", "1000", "0.5", "60", "3600", "180", "360"]); // constante permise în expresie chiar dacă nu apar în enunț
+const NUMS_OK = new Set(["1", "2", "3", "10", "100", "1000", "0.5", "60", "3600", "180", "360", "4200", "9.8", "273", "340"]); // + constante uzuale (c apă, g, 0 °C în K, viteza sunetului)
+// conversii de unități: g→kg, cm→m, min→s, kW→W… (numărul din expresie = numărul din enunț × / ÷ 10^k sau × 60 / 3600)
+const derived = (n, have) => { n = +n; for (const h0 of have) { const h = +h0; if (!h || !n || h === n) continue; const r = n > h ? n / h : h / n, k = Math.round(r); if (Math.abs(r - k) < 1e-9 && (/^10+$/.test(String(k)) || k === 60 || k === 3600 || k === 24)) return true; } return false; };
 const numsOf = t => (String(t).replace(/(\d)\s(?=\d{3}(?!\d))/g, "$1").match(/\d+(?:[.,]\d+)?/g) || []).map(x => String(+x.replace(",", ".")));
 const exampleOf = texts => { // probleme rezolvate (cu rezolvare) + exerciții numerotate din manual (fără rezolvare) → AI învață tipul, unitățile, nivelul
   const solved = texts.flatMap(t => { try { return parseC(t.text).sols.filter(x => x.q.length >= 40 && x.q.length <= 500 && /\d/.test(x.a)).slice(0, 2).map(x => ({ q: x.q, a: x.a.slice(0, 500) })); } catch (e) { return []; } });
@@ -131,7 +133,15 @@ ${body}`);
 }
 export async function composeTest(texts, counts, { materie, clasa, level = 1, avoid = [], chapter = "" }) {
   const hay = nz(texts.map(t => t.text).join("\n")), batches = planBatches(texts), parts = splitCounts(counts, batches.map(b => b.w)), used = [...avoid], js = [];
-  for (const [i, b] of batches.entries()) { try { const j = await composeBatch(b, parts[i], { materie, clasa, level, avoid: used, chapter }); if (j) { js.push(j); [...arr(j.grile), ...arr(j.adevarat_fals), ...arr(j.completari), ...arr(j.raspuns_scurt)].forEach(x => used.push(str(x.enunt, 120))); } } catch (e) { if (!js.length && i === batches.length - 1) throw e; } if (i < batches.length - 1) await pause(9000); }
+  const NUMK = ["num", "prob"];
+  for (const [i, b] of batches.entries()) {
+    const parts2 = [Object.fromEntries(Object.entries(parts[i]).filter(([k]) => !NUMK.includes(k))), Object.fromEntries(Object.entries(parts[i]).filter(([k]) => NUMK.includes(k)))]; // întâi tipurile cu text, apoi calculele
+    for (const [pi, cn] of parts2.entries()) {
+      if (!Object.values(cn).some(Boolean)) continue;
+      try { const j = await composeBatch(b, cn, { materie, clasa, level, avoid: used, chapter }); if (j) { js.push(j); [...arr(j.grile), ...arr(j.adevarat_fals), ...arr(j.completari), ...arr(j.raspuns_scurt)].forEach(x => used.push(str(x.enunt, 120))); } } catch (e) { if (!js.length && i === batches.length - 1 && pi === 1) throw e; }
+      await pause(i < batches.length - 1 || (pi === 0 && Object.values(parts2[1]).some(Boolean)) ? 9000 : 0);
+    }
+  }
   const out = { mcq: [], tf: [], blank: [], match: [], open: [], num: [], prob: [] }, seenQ = new Set(), fresh = q => { const k = nz(q).slice(0, 60); if (seenQ.has(k)) return false; seenQ.add(k); return true; };
   for (const j of js) {
     for (const m of arr(j.grile)) { const q = str(m.enunt), o = arr(m.variante).map(x => str(x, 160)), k = +m.corect; if (q.length >= 12 && !BAD_Q.test(q) && o.length === 4 && o.every(Boolean) && !o.some(x => BAD_OPT.test(x)) && new Set(o.map(nz)).size === 4 && Number.isInteger(k) && k >= 0 && k <= 3 && !(nz(o[k]).length >= 4 && nz(q).includes(nz(o[k]))) && inText(hay, str(m.sursa, 300)) && fresh(q)) { const sh = shuffle(o.map((x, i) => [x, i === k])); out.mcq.push({ q: { t: "mcq", q, o: sh.map(x => x[0]) }, k: sh.findIndex(x => x[1]), src: str(m.sursa, 300) }); } }
@@ -142,7 +152,7 @@ export async function composeTest(texts, counts, { materie, clasa, level = 1, av
     for (const m of arr(j.calcul)) { // rezultatul îl calculăm noi, din expresie; expresia poate folosi doar numere din enunț (sau constante uzuale)
       const q = str(m.enunt, 600), ex = str(m.expresie, 200), u = str(m.unitate, 20); if (q.length < 25 || !ex || BAD_Q.test(q) || /[a-zA-Z]/.test(ex.replace(/sqrt|abs|pi/g, ""))) continue;
       let v; try { v = calc(ex, {}); } catch (e) { continue; } if (!isFinite(v) || Math.abs(v) > 1e9) continue;
-      const have = new Set(numsOf(q)); if (!numsOf(ex).every(n => have.has(n) || NUMS_OK.has(n))) continue; if (!numsOf(ex).some(n => have.has(n))) continue;
+      const have = new Set(numsOf(q)); if (!numsOf(ex).every(n => have.has(n) || NUMS_OK.has(n) || derived(n, have))) continue; if (!numsOf(ex).some(n => have.has(n) || derived(n, have))) continue;
       v = +v.toPrecision(8); const whole = Math.abs(v - Math.round(v)) < 1e-9, rs = String(+v.toFixed(2)).replace(".", ",");
       if (fresh(q)) out.num.push({ q: { t: "num", q: q + (u ? ` Exprimă rezultatul în ${u}` : "") + (whole ? "." : (u ? "," : ".") + " rotunjit la 2 zecimale.") }, k: { v }, src: `${str(m.sursa, 300)} · Rezolvare: ${str(m.rezolvare, 400) || ex} = ${rs}${u ? " " + u : ""}`.replace(/^ · /, "") });
     }
