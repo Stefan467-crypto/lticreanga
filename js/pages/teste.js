@@ -8,6 +8,14 @@ import { auth } from "../core/firebase.js";
 const TY = { mcq: "Grilă", tf: "Adevărat / Fals", blank: "Completare", num: "Problemă", match: "Asociere", open: "Răspuns scurt", prob: "Problemă cu rezolvare" }, LV = ["Ușor", "Mediu", "Greu"], OL = "ABCD";
 const idx = s => { const i = SUBJECTS.indexOf(s); return i < 0 ? 99 : i; }, slug = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), NC = (a, b) => String(a).localeCompare(String(b), "ro", { numeric: true });
 const chap = l => l.capitol || "Fără capitol";
+const noEx = s => String(s).replace(/ \(exemplu\)$/, "");
+/* Titlul testului: tot capitolul → numele capitolului; una sau două teme → numele lor; câteva teme dintr-un capitol → capitolul + câte teme. */
+const titleOf = ls => {
+  const all = L.filter(l => l.materie === S.mat && l.clasa === S.cl && chap(l) === S.kp), names = ls.map(l => noEx(l.tema)), hasCh = S.kp && S.kp !== "Fără capitol";
+  if (hasCh && ls.length > 1 && ls.length >= all.length) return noEx(S.kp);
+  if (ls.length <= 2) return names.join(" + ");
+  return hasCh ? `${noEx(S.kp)} (${ls.length} teme)` : names.slice(0, 2).join(" + ") + ` + încă ${ls.length - 2}`;
+};
 let L = [], S = { mat: "", cl: "", kp: "", ids: new Set(), n: 10, lv: 1, ty: new Set(["mcq", "tf", "blank", "num"]), mode: "train", nv: 2, md: "free" }, V = [], vi = 0, P = null, meta = null, busy = false, TXT = {}, capTok = 0;
 /* ---------- date: textul lecției se aduce doar când e nevoie ---------- */
 const docOf = async l => l.text !== undefined ? { text: l.text, ai: l.ai } : (TXT[l.id] ??= (await getDoc(doc(db, "lectii_text", l.id))).data() || { text: "" });
@@ -87,7 +95,7 @@ function group(g) { // exerciții de același tip, unul lângă altul (în cadru
 async function make() {
   if (busy) return; const l0 = sel(); if (!l0.length) return toast("Alege o temă");
   busy = true; const go = $("#go"); go.disabled = true; go.textContent = aiReady() ? "AI creează testul…" : "Se pregătește…";
-  try { const ls = await texts(l0); meta = { materie: S.mat, clasa: S.cl, tema: ls.map(l => l.tema.replace(/ \(exemplu\)$/, "")).join(" + "), cap: S.kp }; await makeTest(ls); } catch (e) { toast(e.message || "Eroare"); }
+  try { const ls = await texts(l0); meta = { materie: S.mat, clasa: S.cl, tema: titleOf(ls), cap: S.kp }; await makeTest(ls); } catch (e) { toast(e.message || "Eroare"); }
   busy = false; const g2 = $("#go"); if (g2) { g2.disabled = false; g2.textContent = "✦ Generează testul" + (aiReady() ? " cu AI" : ""); }
 }
 const typesNow = () => { const pf = profile(S.mat); let ty = [...S.ty].filter(t => pf.all.includes(t) && t !== "prob" && (paper() || !OPEN_KINDS.has(t))); return ty.length ? ty : pf.def; };
@@ -96,7 +104,7 @@ async function aiBuild(ls, md, avoid, h) { // AI compune întrebările; structur
   if (md) md.parts.forEach((part, pi) => part.it.forEach(sl => { const k = sl.k.find(x => paper() || !OPEN_KINDS.has(x)); if (k) slots.push({ k, p: sl.p, sc: pi }); }));
   else { const ty = typesNow(); for (let i = 0; i < S.n; i++) slots.push({ k: ty[i % ty.length], p: 1, sc: 0 }); }
   const counts = {}; slots.forEach(x => { if (x.k !== "compose") counts[x.k] = (counts[x.k] || 0) + 1; });
-  const res = await composeTest(ls, counts, { materie: S.mat, clasa: S.cl, level: S.lv, avoid });
+  const res = await composeTest(ls, counts, { materie: S.mat, clasa: S.cl, level: S.lv, avoid, chapter: ls.length > 1 && S.kp !== "Fără capitol" ? noEx(S.kp) : "" });
   const g = { q: [], k: [], src: [], p: [], sc: [], sigs: [], total: 0, ai: true }; if (md) g.parts = md.parts.map(x => ({ t: x.t, d: x.d }));
   const used = new Set(), push = (x, s) => { g.q.push(x.q); g.k.push(x.k); g.src.push(x.src); g.p.push(s.p); g.sc.push(s.sc); };
   for (const s of slots) {

@@ -9,6 +9,7 @@ const AB = /\b(Fig|fig|ex|Ex|nr|Nr|cca|etc|pag|str|vol|Dr|dr|Prof|prof|ec|Ec)\./
 const FR = /^(?:(.{2,40}?)\s*[:—–]\s*)?([^=:\s][^=:]{0,22}?)\s*=\s*([^=,;]{1,40}?)\s*(?:[,;(].*)?\.?$/;
 const VERB = "este|sunt|reprezintă|constituie|se numește|se numesc|se definește ca|se definesc ca|numim|se notează cu|înseamnă|desemnează|denumește|este numit|este numită|sunt numite|sunt numiți|este denumit|este denumită";
 const DEF = new RegExp(`^(?:(?:Un|O|Orice|Fiecare)\\s+)?(.{3,60}?)\\s+(?:${VERB})\\s+(.{15,})$`, "i");
+const DEF4 = /^(.{25,220}?)\s+(?:se\s+numesc|se\s+numește|este\s+numit[ăe]?|sunt\s+numit[ăe]?|se\s+denumesc|se\s+denumește)\s+([^,.;:()]{3,50})$/i; // „<descriere> se numesc <termen>.”
 const DEF2 = /^Prin\s+(.{3,50}?)\s+(?:se\s+înțelege|înțelegem|înțelegem prin)\s+(.{15,})$/i;
 const DESC = "mărimea|mărimile|fenomenul|procesul|numărul|numerele|figura|expresia|relația|proprietatea|substanța|reacția|unghiul|funcția|ecuația|cantitatea|raportul|mulțimea|corpul|valoarea|punctul|dreapta|segmentul|orice|acel|acea|aceea|fiecare|un|o|cel|cea|totalitatea|știința|ramura|perioada|evenimentul|persoana|organismul|celula|țesutul|organul";
 const DEF3 = new RegExp(`^(?:Se\\s+(?:numește|numesc)|Numim)\\s+(.{3,45}?)\\s+(${DESC})\\s+(.{12,})$`, "i");
@@ -28,29 +29,34 @@ export function splitSentences(t) {
   t = t.replace(AB, m => m.replace(".", "§")).replace(/(\d)[.](\d)/g, "$1§$2").replace(/(\b\d+)\.(\s)/g, "$1§$2");
   return (t.match(/[^.!?]+(?:[.!?]+|$)/g) || []).map(s => s.replace(/§/g, ".").trim().replace(/^(?:Așadar|De asemenea|În plus|Totodată|În concluzie|Prin urmare|De exemplu),\s*(\p{L})/u, (_, c) => c.toUpperCase())).filter(s => s.length >= 30 && s.length <= 300 && /\p{L}{3}/u.test(s) && !/\b(fig\.|figura|tabelul|exercițiu|problema\s+\d|vezi)\b/i.test(s) && goodSent(s));
 }
+/* Manualele vechi folosesc „ş/ţ” (cu sedilă); codul caută „ș/ț” (virgulă dedesubt). Unele manuale de matematică au fontul mapat greșit: „Exerci\ii [i probleme” = „Exerciții și probleme”, „]n” = „în”. */
+export const normDia = t => String(t).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "").replace(/(?<=[A-Za-z0-9 ])[сС](?=[A-Za-z]\b)/g, m => m === "с" ? "c" : "C").replace(/ş/g, "ș").replace(/Ş/g, "Ș").replace(/ţ/g, "ț").replace(/Ţ/g, "Ț");
+export const fixFont = t => (t.match(/\p{L}\\\p{L}/gu) || []).length < 3 ? t : t.replace(/(?<=\p{L})\\(?=\p{L})/gu, "ț").replace(/(?<![\p{L}\d\]])\[i(?!\p{L})/gu, "și").replace(/(?<![\p{L}\d\]])\](?=\p{L}{1,}(?!\p{L}))/gu, m => "î").replace(/(?<![\p{L}\d])\](?=\p{L})/gu, "î");
 // Unele manuale (fonturi cu majuscule speciale) dau „FIzICII”, „INtRODUCERE”: t și z mici în mijlocul cuvintelor scrise cu majuscule → le facem majuscule.
 const fixCaps = t => t.replace(/[\p{L}]{2,}/gu, w => /[tz]/.test(w) && /^[\p{Lu}tz]+$/u.test(w) && (w.match(/\p{Lu}/gu) || []).length >= 2 ? w.toUpperCase() : w);
 export function clean(t) { // curăță textul extras din PDF
-  t = fixCaps(t.replace(/\r/g, "").replace(/\u00ad/g, "").replace(/-\n(?=\p{Ll})/gu, "")).replace(/^.*\.indd\s+\d+\s+\d{1,2}\.\d{2}\.\d{4}.*$/gm, "");
+  t = fixCaps(fixFont(normDia(t)).replace(/\r/g, "").replace(/\u00ad/g, "").replace(/-\n(?=\p{Ll})/gu, "")).replace(/^.*\.indd\s+\d+\s+\d{1,2}\.\d{2}\.\d{4}.*$/gm, "");
   const L = t.split("\n"), cnt = new Map(); // antete / subsoluri care se repetă pe fiecare pagină + numerele paginilor
   for (const l of L) { const k = l.trim(); if (k.length >= 12 && k.length < 80) cnt.set(k, (cnt.get(k) || 0) + 1); }
   t = L.filter(l => { const k = l.trim(); return !/^\d{1,3}$/.test(k) && !(cnt.get(k) >= 3 && !/[.!?:]$/.test(k)); }).join("\n");
   return t.replace(/\s+([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)/g, "$1").replace(/([^.!?:\n])\n(?=\p{Ll})/gu, "$1 ").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-/* ---- calcul sigur (fără eval) ---- */
-export function calc(expr, vars) {
-  const tk = expr.replace(/·|×|⋅/g, "*").replace(/÷/g, "/").replace(/,/g, ".").match(/\d+(?:\.\d+)?|[a-zA-Z_]\w*|\*\*|[-+*/^()]/g) || [], ops = [], P = { "+": 1, "-": 1, "*": 2, "/": 2, "^": 3, "**": 3 }, fn = { sqrt: Math.sqrt, abs: Math.abs, sin: Math.sin, cos: Math.cos }, st = [];
-  const apply = o => { const b = st.pop(), a = st.pop(); st.push(o === "+" ? a + b : o === "-" ? a - b : o === "*" ? a * b : o === "/" ? a / b : a ** b); };
-  for (let i = 0; i < tk.length; i++) {
-    const t = tk[i];
-    if (/^\d/.test(t)) st.push(+t); else if (t in fn) ops.push(t);
-    else if (/^[a-zA-Z_]/.test(t)) { if (t === "pi") st.push(Math.PI); else if (t in vars) st.push(vars[t]); else throw new Error("var " + t); }
-    else if (t === "(") ops.push(t);
-    else if (t === ")") { while (ops.length && ops.at(-1) !== "(") apply(ops.pop()); ops.pop(); if (ops.length && ops.at(-1) in fn) st.push(fn[ops.pop()](st.pop())); }
-    else { if (t === "-" && (i === 0 || /^[-+*/^(]|\*\*/.test(tk[i - 1]))) { st.push(0); } while (ops.length && ops.at(-1) in P && (P[ops.at(-1)] > P[t] || (P[ops.at(-1)] === P[t] && t !== "^" && t !== "**"))) apply(ops.pop()); ops.push(t); }
-  }
-  while (ops.length) apply(ops.pop()); return st.pop();
+/* ---- calcul sigur (fără eval): parser recursiv; respectă prioritățile, minusul unar (2*-3, 2^-1) și puterile (2^3^2 = 2^9) ---- */
+export function calc(expr, vars = {}) {
+  const tk = String(expr).replace(/·|×|⋅/g, "*").replace(/÷/g, "/").replace(/−/g, "-").replace(/,/g, ".").match(/\d+(?:\.\d+)?|[a-zA-Z_]\w*|\*\*|[-+*/^()]/g) || [], fn = { sqrt: Math.sqrt, abs: Math.abs, sin: x => Math.sin(x * Math.PI / 180), cos: x => Math.cos(x * Math.PI / 180), tan: x => Math.tan(x * Math.PI / 180), ln: Math.log, log: Math.log10 };
+  let i = 0; const peek = () => tk[i], eat = t => { if (tk[i] !== t) throw new Error("așteptam " + t); i++; };
+  const atom = () => {
+    const t = tk[i++]; if (t === undefined) throw new Error("expresie incompletă");
+    if (/^\d/.test(t)) return +t; if (t === "(") { const v = sum(); eat(")"); return v; }
+    if (t in fn) { eat("("); const v = sum(); eat(")"); return fn[t](v); }
+    if (t === "pi") return Math.PI; if (t in vars) return vars[t]; throw new Error("var " + t);
+  };
+  const pow = () => { const b = atom(); if (peek() === "^" || peek() === "**") { i++; return b ** unary(); } return b; };
+  const unary = () => { if (peek() === "-") { i++; return -unary(); } if (peek() === "+") { i++; return unary(); } return pow(); };
+  const prod = () => { let v = unary(); while (peek() === "*" || peek() === "/") { const o = tk[i++], r = unary(); v = o === "*" ? v * r : v / r; } return v; };
+  const sum = () => { let v = prod(); while (peek() === "+" || peek() === "-") { const o = tk[i++], r = prod(); v = o === "+" ? v + r : v - r; } return v; };
+  const v = sum(); if (i < tk.length) throw new Error("rest: " + tk[i]); return v;
 }
 
 /* ---- probleme din manual: se extrag singure (enunț + rezolvare) și, când se poate, devin șabloane cu numere schimbate ---- */
@@ -123,10 +129,20 @@ function extractProblems(lines, P) {
   return rest;
 }
 
+/* ---- exerciții numerotate de la sfârșitul lecției („3. Un pendul efectuează 30 de oscilații în 60 s. Determină perioada.”): nu au rezolvare, dar arată AI-ului ce tip de probleme se dau la lecția respectivă ---- */
+const ASKV = /(?:^|[.?!]\s+|\d\.\s+)(?:Calcul|Determin|Afl|Găsi|Exprim)\p{L}*|(?<!\p{L})Să\s+se\s+(?:calcul|determin|afl|găsea)\p{L}*|(?<!\p{L})Câ[tț]\p{L}*\s|\?\s*(?:\([^)]*\)\s*)?$/iu; // cerință de calcul: „Calculează…”, „Să se afle…”, „Câte oscilații…?”
+export function exercisesOf(text, max = 8) {
+  const L = fixFont(normDia(text)).replace(/\r/g, "").split("\n"), out = []; let cur = null;
+  const flush = () => { if (cur) { const q = cur.replace(/\s+/g, " ").replace(/^\*/, "").trim(); const nums = q.match(/\d+(?:[.,]\d+)?/g) || []; if (q.length >= 40 && q.length <= 420 && nums.length >= 2 && ASKV.test(q) && !/[\\\]\[]|\.{3,}|fig\.|figura|\s[,.;]\s|formula\s*[,.:]|\bunde\s+[a-z]\s+este\b/i.test(q) && !/^(?:Descrie|Explic|Argument|Compar|Enumer|Preciz|Formul|Dă|Indic|Alege|Selecte|Complete|Scrie|Exemplific|Numește|Ce |De ce|Cum )/i.test(q.replace(/^\d+\.\s*/, ""))) out.push(q.replace(/^\d+\.\s*/, "")); } cur = null; };
+  for (const raw of L) { const l = raw.trim(); const m = /^\*?\d{1,2}\.\s+\p{Lu}/u.exec(l); if (m) { flush(); cur = l; } else if (cur && l && cur.length < 420 && !/^(?:Extindere|Evaluare|Rezumat|Capitolul|\d+\.\d+\.)/.test(l) && !/^\d{1,3}$/.test(l)) cur += " " + l; else flush(); }
+  flush(); return out.slice(0, max);
+}
+
 /* ---- analiză lecție ---- */
 export function parse(text, tema = "") {
   const P = { tema, sents: [], defs: [], forms: [], probs: [], sols: [] };
   const addDef = (term, def, src) => { term = tidy(term); def = def.replace(/[.!?]+$/, "").trim(); if (okTerm(term) && okDef(def)) P.defs.push({ term, def, src }); };
+  text = fixFont(normDia(text));
   for (const raw of extractProblems(text.replace(/\r/g, "").split("\n"), P)) {
     let l = raw.trim().replace(/^[•▪●◦*]\s*|^[-–—]\s+(?=\p{L})/u, ""); if (!l || l.startsWith("# ") || /^(?:\d{1,2}[.)]|[a-hA-H]\))\s+\p{Lu}/u.test(l) && !/^@problema/i.test(l) && /[?:]\s*$|\b(?:calcula|determina|completa|notează|construi|analiza|formula)\p{L}*/iu.test(l)) continue;
     if (/^@problema/i.test(l)) { P.probs.push(l.replace(/^@problema\s*/i, "")); continue; }
@@ -137,6 +153,7 @@ export function parse(text, tema = "") {
     if (m0 && !/\b(legea|formula)\b/i.test(m0[1]) && m0[1].split(/\s+/).length <= 5 && !TASK.test(m0[1] + " ")) addDef(m0[1], m0[2], l);
     for (const s of splitSentences(l)) {
       P.sents.push(s);
+      const m4 = DEF4.exec(s.replace(/[.!]+$/, "")); if (m4 && m4[1].split(/\s+/).length >= 4 && m4[2].trim().split(/\s+/).length <= 5 && !/\s(?:și|sau|iar)\s/i.test(m4[2]) && !/^(?:aceste|acestea|aceasta|acesta)\b/i.test(m4[2].trim())) { const before = m4[1].replace(/^(?:Mărimea|Fenomenul|Procesul)\s+(?:fizic[ăe]\s+)?(?:care|ce)\s+/i, m => m); addDef(m4[2].trim().replace(/^(?:un|o|unitatea|noțiunea)\s+/i, m => /^unitatea/i.test(m) ? m : ""), cap(before), s); continue; }
       const m3 = DEF3.exec(s); if (m3) { addDef(m3[1], m3[2] + " " + m3[3], s); continue; }
       const m = DEF.exec(s) || DEF2.exec(s); if (m) addDef(m[1].replace(/^(?:un|o|prin)\s+/i, ""), m[2], s);
     }
@@ -171,11 +188,12 @@ export function generate(P, { n = 10, types = ["mcq", "tf", "blank", "num"], lev
     return null;
   };
   const mutNum = a => { const m = /^(\d+(?:[.,]\d+)?)(.*)$/.exec(a); if (!m) return a; const dec = /,/.test(m[1]), v = parseFloat(m[1].replace(",", ".")), f = pick([2, .5, 1.5, 10, .1, 3, .25]), r = +(v * f).toFixed(2); let s = String(r === v ? v + 1 : r); if (dec) s = s.replace(".", ","); return s + m[2]; };
-  const distract = (t, s, cnt) => { // alternative plauzibile
+  const stem = w => nz(w).replace(/[^a-z0-9 ]/g, "").slice(0, 4), plural = w => /(?:i|e|uri|ele|ii)$/i.test(String(w).trim()); // „Atom” și „Atomul” au aceeași tulpină; „izotopii” e plural, „atomul” singular
+  const distract = (t, s, cnt, sameNo = false) => { // alternative plauzibile
     const out = new Set();
     if (t.kind === "n") { for (let i = 0; i < 12 && out.size < cnt; i++) { const x = nums.length && R() < .4 ? pick(nums) : mutNum(t.a); if (x !== t.a) out.add(x); } }
-    else if (t.def) { const up = t.a[0] === t.a[0].toUpperCase(), pool = shuf(P.defs.map(x => x.term).filter(x => nz(x) !== nz(t.a) && nz(x).slice(0, 5) !== nz(t.a).slice(0, 5))); for (const p of pool) { if (out.size >= cnt) break; out.add(up ? cap(p) : p.charAt(0).toLowerCase() + p.slice(1)); } }
-    else { let pool = keys.filter(k => nz(k) !== nz(t.a) && nz(k).slice(0, 5) !== nz(t.a).slice(0, 5) && !nz(s).includes(nz(k))); if (level > 0) pool = pool.sort((x, y) => Math.abs(x.length - t.a.length) - Math.abs(y.length - t.a.length)).slice(0, 10); pool = shuf(pool); const up = t.a[0] === t.a[0].toUpperCase(); for (const p of pool) { if (out.size >= cnt) break; out.add(up ? cap(p) : p); } }
+    else if (t.def) { const up = t.a[0] === t.a[0].toUpperCase(), seenSt = new Set([stem(t.a)]), pool = shuf(P.defs.map(x => x.term).filter(x => nz(x) !== nz(t.a) && stem(x) !== stem(t.a) && (!sameNo || plural(x) === plural(t.a)))); for (const p of pool) { if (out.size >= cnt) break; if (seenSt.has(stem(p))) continue; seenSt.add(stem(p)); out.add(up ? cap(p) : p.charAt(0).toLowerCase() + p.slice(1)); } }
+    else { let pool = keys.filter(k => nz(k) !== nz(t.a) && stem(k) !== stem(t.a) && !nz(s).includes(nz(k))); if (level > 0) pool = pool.sort((x, y) => Math.abs(x.length - t.a.length) - Math.abs(y.length - t.a.length)).slice(0, 10); pool = shuf(pool); const up = t.a[0] === t.a[0].toUpperCase(); const seenSt = new Set([stem(t.a)]); for (const p of pool) { if (out.size >= cnt) break; if (seenSt.has(stem(p))) continue; seenSt.add(stem(p)); out.add(up ? cap(p) : p); } }
     return out.size >= cnt ? [...out].slice(0, cnt) : null;
   };
   const blankOut = (s, t) => t.kind === "w" ? s.replace(new RegExp(`(?<![\\p{L}\\d])${esc(t.a)}(?![\\p{L}\\d])`, "giu"), "_____") : s.split(t.a).join("_____");
@@ -191,7 +209,7 @@ export function generate(P, { n = 10, types = ["mcq", "tf", "blank", "num"], lev
       const T = { t: "tf", q: s, k: true, src: s }; if (R() < .5) return T;
       const nn = (s.match(NUM) || []).filter(x => /\d/.test(x) && x.length >= 2)[0];
       if (nn) { const w = distract({ kind: "n", a: nn.trim() }, s, 1); return w ? { t: "tf", q: s.replace(nn.trim(), w[0]), k: false, src: s } : T; }
-      const d = P.defs.find(x => x.src === s); if (d && t.def) { const w = distract(t, s, 1); if (w) return { t: "tf", q: s.replace(new RegExp(esc(d.term), "i"), w[0]), k: false, src: s }; }
+      const d = P.defs.find(x => x.src === s); if (d && t.def && new RegExp("^" + esc(d.term), "i").test(s)) { const w = distract(t, s, 1, true); if (w) return { t: "tf", q: s.replace(new RegExp("^" + esc(d.term), "i"), w[0]), k: false, src: s }; }
       return T;
     } });
   });
@@ -218,7 +236,7 @@ export function generate(P, { n = 10, types = ["mcq", "tf", "blank", "num"], lev
     txt = txt.replace(/\{(\w+):([\d.,]+)-([\d.,]+)(?::([\d.,]+))?\}/g, (_, v, a, b, st) => { a = +a.replace(",", "."); b = +b.replace(",", "."); st = st ? +st.replace(",", ".") : 1; const steps = Math.floor((b - a) / st + 1e-9), x = +(a + Math.floor(R() * (steps + 1)) * st).toFixed(4); vars[v] = x; return String(x).replace(".", ","); });
     let v; try { v = calc(m[2], vars); } catch (e) { return null; } if (!isFinite(v)) return null; v = +v.toPrecision(6);
     const shown = m[2].trim().replace(/[a-zA-Z_]\w*/g, w => w in vars ? String(vars[w]).replace(".", ",") : w), un = (m[3] || "").trim(), rs = String(+v.toFixed(2)).replace(".", ",");
-    return { t: "num", q: `${txt}${un && !/fără/i.test(un) ? ` (răspuns în ${un}, rotunjit la 2 zecimale)` : " (rotunjește la 2 zecimale)"}`, k: { v }, src: `${m[4] ? "Formula: " + m[4].trim() + ". " : ""}Calcul: ${shown} = ${rs}${un && !/fără/i.test(un) ? " " + un : ""}` };
+    const whole = Math.abs(v - Math.round(v)) < 1e-9; return { t: "num", q: `${txt}${un && !/fără/i.test(un) ? ` (răspuns în ${un}${whole ? "" : ", rotunjit la 2 zecimale"})` : whole ? "" : " (rotunjește la 2 zecimale)"}`, k: { v }, src: `${m[4] ? "Formula: " + m[4].trim() + ". " : ""}Calcul: ${shown} = ${rs}${un && !/fără/i.test(un) ? " " + un : ""}` };
   } }));
   const X = P.x || {};
   (X.mcq || []).forEach((m, i) => G.mcq.push({ sig: `x|m${i}`, f: () => { const { o, k } = optsQ(m.o[m.k], m.o.filter((_, j) => j !== m.k)); return { t: "mcq", q: m.q, o, k, src: m.src }; } }));

@@ -38,7 +38,8 @@ async function saveLesson(v, id, keepAi) {
   await setDoc(ref, { ...meta, st: statOf(parse(text)), ...(keepAi ? { aiok: true } : {}) });
   await setDoc(doc(db, "lectii_text", ref.id), keepAi ? { text } : { text, ai: deleteField() }, { merge: true }); return ref.id;
 }
-const dedupe = items => { const seen = new Set(); return items.filter((x, i) => { const k = nrm(x.t) + "|" + x.p, prev = items[i - 1]; if (seen.has(k) || (prev && nrm(prev.t) === nrm(x.t) && (prev.ch || "") === (x.ch || ""))) return false; seen.add(k); return true; }); };
+const NOTLESSON = /^(?:prefa[tț]|cuvânt înainte|cuvant inainte|cuprins|bibliografie|anex|indice|răspunsuri|raspunsuri|rezolvări|rezolvari|glosar|dic[tț]ionar|abrevieri|simboluri|norme de|coperta|evaluare finală|evaluare finala)/i; // părți din manual care nu sunt teme de studiu
+const dedupe = items => { const seen = new Set(); return items.filter((x, i) => { if (NOTLESSON.test(x.t.trim())) return false; const k = nrm(x.t) + "|" + x.p, prev = items[i - 1]; if (seen.has(k) || (prev && nrm(prev.t) === nrm(x.t) && (prev.ch || "") === (x.ch || ""))) return false; seen.add(k); return true; }); };
 /* ---------- citire PDF (pdf.js, încărcat doar când e nevoie) ---------- */
 const CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/", cache = {};
 async function lib() { if (!window.pdfjsLib) await new Promise((ok, no) => { const s = document.createElement("script"); s.src = CDN + "pdf.min.js"; s.onload = ok; s.onerror = () => no(new Error("Nu pot încărca modulul PDF (verifică internetul)")); document.head.append(s); }); pdfjsLib.GlobalWorkerOptions.workerSrc = CDN + "pdf.worker.min.js"; return pdfjsLib; }
