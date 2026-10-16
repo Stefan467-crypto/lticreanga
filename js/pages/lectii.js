@@ -1,5 +1,6 @@
 import { $, esc, toast, whenRole, modal, sheet, can, user, db, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc, deleteField, doc, writeBatch } from "../core/core.js";
 import { aiOn, analyzeLesson, tocAI, pause } from "../teste/ai.js";
+import { readPage } from "../teste/reading.js";
 import { SUBJECTS, CLASSES, classesOf, canon } from "../core/config.js";
 import { parse, parseC, statOf, clean } from "../teste/engine.js";
 import { DEMO } from "../teste/demo.js";
@@ -38,8 +39,10 @@ async function saveLesson(v, id, keepAi) {
   await setDoc(ref, { ...meta, st: statOf(parse(text)), ...(keepAi ? { aiok: true } : {}) });
   await setDoc(doc(db, "lectii_text", ref.id), keepAi ? { text } : { text, ai: deleteField() }, { merge: true }); return ref.id;
 }
-const NOTLESSON = /^(?:prefa[tț]|cuvânt înainte|cuvant inainte|cuprins|bibliografie|anex|indice|răspunsuri|raspunsuri|rezolvări|rezolvari|glosar|dic[tț]ionar|abrevieri|simboluri|norme de|coperta|evaluare finală|evaluare finala)/i; // părți din manual care nu sunt teme de studiu
-const dedupe = items => { const seen = new Set(); return items.filter((x, i) => { if (NOTLESSON.test(x.t.trim())) return false; const k = nrm(x.t) + "|" + x.p, prev = items[i - 1]; if (seen.has(k) || (prev && nrm(prev.t) === nrm(x.t) && (prev.ch || "") === (x.ch || ""))) return false; seen.add(k); return true; }); };
+const NOTLESSON = /^(?:prefa[tț]|cuvânt înainte|cuvant inainte|cuprins|bibliografie|anex|indice|răspunsuri|raspunsuri|rezolvări|rezolvari|glosar|dic[tț]ionar|abrevieri|simboluri|norme de|coperta|evaluare|rezumat|extindere|tabelul|tabelele|conceptele de bază|conceptele de baza|recapitulare final|test de autoevaluare|lucrare de laborator nr\.?\s*\d+\s*$|cum utiliz)/i; // părți din manual care nu sunt teme de studiu
+// Unele manuale scriu titlurile cu majuscule mici („OsCIlațII șI unde meCanICe”): le aducem la forma normală
+const fixTitle = t => { t = t.replace(/\s+/g, " ").trim(); if (!/\p{Ll}\p{Lu}/u.test(t.replace(/\b[A-ZĂÂÎȘȚ]{2,}\b/gu, ""))) return t.replace(/([.!?]\s+)(\p{Ll})/gu, (m, a, b) => a + b.toUpperCase()); const m = /^((?:capitolul|unitatea|modulul|partea)\s+[\dIVXLC]+\.?\s*)?(.*)$/iu.exec(t), rest = (m[2] || "").toLowerCase().replace(/^\p{Ll}/u, c => c.toUpperCase()).replace(/([.!?]\s+)(\p{Ll})/gu, (x, a, b) => a + b.toUpperCase()); return ((m[1] || "").replace(/^(\p{L}+)(\s+)([\dIVXLCivxlc]+)/u, (x, w, sp, n) => w[0].toUpperCase() + w.slice(1).toLowerCase() + sp + n.toUpperCase()) + rest).trim(); };
+const dedupe = items => { items.forEach(x => { x.t = fixTitle(x.t); if (x.ch) x.ch = fixTitle(x.ch); }); const seen = new Set(); return items.filter((x, i) => { if (NOTLESSON.test(x.t.trim())) return false; const k = nrm(x.t) + "|" + x.p, prev = items[i - 1]; if (seen.has(k) || (prev && nrm(prev.t) === nrm(x.t) && (prev.ch || "") === (x.ch || ""))) return false; seen.add(k); return true; }); };
 /* ---------- citire PDF (pdf.js, încărcat doar când e nevoie) ---------- */
 const CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/", cache = {};
 async function lib() { if (!window.pdfjsLib) await new Promise((ok, no) => { const s = document.createElement("script"); s.src = CDN + "pdf.min.js"; s.onload = ok; s.onerror = () => no(new Error("Nu pot încărca modulul PDF (verifică internetul)")); document.head.append(s); }); pdfjsLib.GlobalWorkerOptions.workerSrc = CDN + "pdf.worker.min.js"; return pdfjsLib; }
@@ -49,21 +52,8 @@ async function openPdf(src) {
   else { if (cache[src]) return cache[src]; let r; try { r = await fetch(src); } catch (e) { throw new Error("Browserul nu permite citirea manualului de la acest link. Alege fișierul PDF de pe telefon sau încarcă manualul în Resurse (butonul +)."); } if (!r.ok) throw new Error("Manualul nu poate fi descărcat (cod " + r.status + ")"); data = await r.arrayBuffer(); }
   const pdf = await lb.getDocument({ data }).promise; if (typeof src === "string") cache[src] = pdf; return pdf;
 }
-const SUP = { "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹", "-": "⁻", "−": "⁻" };
-async function pagesText(pdf, a, b) {
-  let out = ""; for (let i = Math.max(1, a); i <= Math.min(pdf.numPages, b); i++) {
-    const t = await (await pdf.getPage(i)).getTextContent(); let line = "", y = null, xe = null, hp = 0;
-    for (const it of t.items) {
-      const h = Math.abs(it.transform[3]) || 10, x = it.transform[4], dy = y === null ? 0 : it.transform[5] - y;
-      const sup = y !== null && hp && h < hp * 0.85 && dy > 0 && dy < hp * 0.8 && /^[\d−-]{1,3}$/.test(it.str.trim()); // exponent (m³, cm²) rămâne pe același rând
-      const same = y !== null && (Math.abs(dy) <= Math.max(h, hp) * 0.3 || sup || (h < hp * 0.85 && Math.abs(dy) < hp * 0.6));
-      if (y !== null && !same) { out += line.trim() + "\n"; line = ""; xe = null; }
-      if (xe !== null && x - xe > h * 0.18 && !/\s$/.test(line) && !/^\s/.test(it.str) && !sup) line += " ";
-      line += sup ? [...it.str.trim()].map(c => SUP[c] || c).join("") : it.str;
-      if (!sup && !(same && h < hp * 0.85)) { y = it.transform[5]; hp = h; } xe = x + (it.width || 0);
-    }
-    out += line.trim() + "\n\n";
-  }
+async function pagesText(pdf, a, b) { // textul paginilor în ordinea de citire (coloane, casete, tabele) — vezi js/teste/reading.js
+  let out = ""; for (let i = Math.max(1, a); i <= Math.min(pdf.numPages, b); i++) out += readPage((await (await pdf.getPage(i)).getTextContent()).items) + "\n\n";
   return clean(out);
 }
 const withEnd = (items, last) => items.map((x, i) => ({ ...x, e: Math.max(x.p, Math.min(x.p + 11, (items[i + 1]?.p ?? last + 1) - 1)) }));

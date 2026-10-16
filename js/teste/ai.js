@@ -6,10 +6,23 @@ import { nz, checkTemplate, calc, parseC, exercisesOf } from "./engine.js";
 export const aiOn = () => !!AI_URL;
 export const pause = ms => new Promise(r => setTimeout(r, ms));
 // Extrage JSON-ul și din răspunsuri „murdare” (text înainte/după, ```json, virgule în plus).
+// JSON tăiat la limita de tokeni: păstrăm tot ce e complet (elemente întregi din liste) și închidem parantezele.
+const repair = t => {
+  const st = []; let inS = false, ex = false, cutAt = -1, closers = "";
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (inS) { if (ex) ex = false; else if (c === "\\") ex = true; else if (c === '"') inS = false; continue; }
+    if (c === '"') inS = true; else if (c === "{" || c === "[") st.push(c);
+    else if (c === "}" || c === "]") { st.pop(); if (st.length >= 1 && st.length <= 2) { cutAt = i + 1; closers = st.map(x => x === "{" ? "}" : "]").reverse().join(""); } }
+  }
+  if (cutAt < 0) throw new Error("fără element complet");
+  return JSON.parse(t.slice(0, cutAt) + closers);
+};
 const toJson = raw => {
   const t = String(raw || "").replace(/^\s*```(?:json)?/i, "").replace(/```\s*$/, "").trim();
   try { return JSON.parse(t); } catch (e) { }
   const a = t.indexOf("{"), b = t.lastIndexOf("}"); if (a >= 0 && b > a) { const c = t.slice(a, b + 1); try { return JSON.parse(c); } catch (e) { try { return JSON.parse(c.replace(/,\s*([}\]])/g, "$1")); } catch (e2) { } } }
+  try { const a2 = t.indexOf("{"); if (a2 >= 0) return repair(t.slice(a2)); } catch (e3) { }
   throw new Error("Răspunsul AI nu e valid. Încearcă din nou.");
 };
 async function call(prompt, opt = {}) {
@@ -38,7 +51,7 @@ export function validate(j, text) {
 export async function analyzeLesson(text, { materie, clasa, tema }) {
   const t = text.slice(0, 30000);
   const j = await call(`Ești profesor de ${materie}, clasa ${clasa}, în Republica Moldova. Din TEXTUL lecției „${tema}” de mai jos, și NUMAI din el, pregătește material pentru teste.
-REGULI: nu folosi cunoștințe din afara textului. Fiecare element are câmpul "sursa" = o propoziție copiată EXACT din text (max 200 de caractere) care îl justifică. Scrie în limba română corectă. Fără întrebări despre figuri, pagini sau exerciții din manual. Răspunsurile greșite din grile trebuie să fie plauzibile, din aceeași materie.
+REGULI: nu folosi cunoștințe din afara textului. Fiecare element are câmpul "sursa" = primele 10-14 cuvinte ale propoziției-sursă din text, copiate EXACT (max 110 de caractere) care îl justifică. Scrie în limba română corectă. Fără întrebări despre figuri, pagini sau exerciții din manual. Răspunsurile greșite din grile trebuie să fie plauzibile, din aceeași materie.
 Returnează DOAR JSON cu această formă:
 {"definitii":[{"termen":"","definitie":"","sursa":""}],
 "grile":[{"enunt":"","variante":["","","",""],"corect":0,"sursa":""}],
@@ -98,7 +111,7 @@ async function composeBatch(batch, counts, { materie, clasa, level, avoid, chapt
   if (!Object.values(want).some(Boolean)) return null;
   const lv = ["ușoare, de recunoaștere și reproducere", "de dificultate medie, cu înțelegere", "dificile, cu aplicare și raționament"][level] || "de dificultate medie";
   return call(`Ești profesor de ${materie}, clasa ${clasa}, în Republica Moldova. Creează un TEST${chapter ? ` pentru capitolul „${chapter}”` : ""} din TEXTUL lecțiilor de mai jos, și NUMAI din el. Întrebările sunt ${lv}.
-REGULI GENERALE: nu folosi cunoștințe din afara textului; nu întreba despre figuri, pagini, tabele, activități sau exerciții din manual; fiecare întrebare trebuie să se înțeleagă singură, fără manual (fără „în text”, „mai sus”, „lecția”); limba română corectă gramatical, cu diacritice (ă, â, î, ș, ț); întrebări diferite între ele, din teme diferite, variate (nu două întrebări despre aceeași propoziție). Fiecare element are "sursa" = o propoziție copiată EXACT din text (max 200 de caractere) pe care se sprijină.
+REGULI GENERALE: nu folosi cunoștințe din afara textului; nu întreba despre figuri, pagini, tabele, activități sau exerciții din manual; fiecare întrebare trebuie să se înțeleagă singură, fără manual (fără „în text”, „mai sus”, „lecția”); limba română corectă gramatical, cu diacritice (ă, â, î, ș, ț); întrebări diferite între ele, din teme diferite, variate (nu două întrebări despre aceeași propoziție). Fiecare element are "sursa" = primele 10-14 cuvinte ale propoziției-sursă din text, copiate EXACT (max 110 de caractere) pe care se sprijină.
 GRILE: 4 variante plauzibile, de aceeași natură și lungime apropiată, din aceeași materie; o singură corectă; poziția corectă variază; răspunsul corect NU apare în enunț; fără „toate/niciuna dintre cele de mai sus”.
 ADEVĂRAT/FALS: afirmații complete, de sine stătătoare (fără „acesta/aceasta” la început); aproximativ jumătate false (falsul = o mică schimbare a unui fapt din text: număr, termen, sens).
 COMPLETĂRI: o propoziție cu ___ în locul UNUI singur termen-cheie (1–3 cuvinte), fără alt termen la fel de potrivit.
