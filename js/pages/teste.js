@@ -1,7 +1,7 @@
 import { $, esc, toast, whenRole, modal, can, db, collection, getDocs, getDoc, doc } from "../core/core.js";
 import { SUBJECTS, CLASSES, canon } from "../core/config.js";
 import { KIND, OPEN_KINDS, profile, models, total } from "../teste/exam.js";
-import { merge, parseC, withAi, generate, generateExam, grade, nota, correct, capacity } from "../teste/engine.js";
+import { merge, parseC, withAi, generate, generateExam, grade, nota, correct, capacity, scale, rangeOf, wt } from "../teste/engine.js";
 import { DEMO } from "../teste/demo.js";
 import { aiOn, composeTest } from "../teste/ai.js";
 import { bankFor } from "../teste/formule.js";
@@ -103,7 +103,7 @@ const typesNow = () => { const pf = profile(S.mat); let ty = [...S.ty].filter(t 
 async function aiBuild(ls, md, avoid, h) { // AI compune întrebările; structura (tipuri, părți, punctaj) vine din model sau din setări
   const slots = [];
   if (md) md.parts.forEach((part, pi) => part.it.forEach(sl => { const k = sl.k.find(x => paper() || !OPEN_KINDS.has(x)); if (k) slots.push({ k, p: sl.p, sc: pi }); }));
-  else { const ty = typesNow(); for (let i = 0; i < S.n; i++) slots.push({ k: ty[i % ty.length], p: 1, sc: 0 }); }
+  else { const ty = typesNow(); for (let i = 0; i < S.n; i++) slots.push({ k: ty[i % ty.length], p: wt(ty[i % ty.length]), sc: 0 }); }
   const counts = {}; slots.forEach(x => { if (x.k !== "compose") counts[x.k] = (counts[x.k] || 0) + 1; });
   const res = await composeTest(ls, counts, { materie: S.mat, clasa: S.cl, level: S.lv, avoid, chapter: ls.length > 1 && S.kp !== "Fără capitol" ? noEx(S.kp) : "" });
   const g = { q: [], k: [], src: [], p: [], sc: [], sigs: [], total: 0, ai: true }; if (md) g.parts = md.parts.map(x => ({ t: x.t, d: x.d }));
@@ -122,6 +122,7 @@ async function makeTest(ls) {
     let g = null;
     if (aiReady()) { try { g = await aiBuild(ls, md, V.flatMap(x => x.q.map(q => q.q)), h); if (g.total < 2) { g = null; aiFail = "AI nu a găsit destul material în lecție."; } } catch (e) { aiFail = e.message; } }
     if (!g) { const ty = typesNow(); g = md ? generateExam(P, md, { level: S.lv, hist: h, noOpen: !paper(), tema: meta.tema }) : generate(P, { n: S.n, types: ty, level: S.lv, hist: h }); g.sigs.forEach(x => h.add(x)); }
+    if (!md) g.p = g.q.map(q => wt(q.t)); // test liber: exercițiile mai grele valorează mai multe puncte
     if (md) g.md = md; V.push(group(g));
   }
   H[key] = [...h].slice(-600); try { localStorage.tsig = JSON.stringify(H); } catch (e) { }
@@ -132,16 +133,17 @@ async function makeTest(ls) {
 }
 /* ---------- test ---------- */
 const hintOf = q => q.t === "match" ? "Scrie litera potrivită la fiecare noțiune." : "";
-const qHtml = (q, i, k, ev, p, N) => `<li class="qs" data-i="${i}"><div class="qh"><b>${i + 1}</b><span class="pill">${TY[q.t]}</span>${p > 1 ? `<span class="tag">${p} p</span>` : ""}${ev ? `<span class="qa">${N > 1 ? `<button type="button" class="ib sm" data-up="${i}" aria-label="Mută sus" ${i ? "" : "disabled"}>↑</button><button type="button" class="ib sm" data-dn="${i}" aria-label="Mută jos" ${i < N - 1 ? "" : "disabled"}>↓</button>` : ""}<button type="button" class="ib sm" data-ed="${i}" aria-label="Editează întrebarea" title="Editează">✎</button><button type="button" class="ib sm" data-re="${i}" aria-label="Schimbă întrebarea" title="Schimbă">↻</button><button type="button" class="ib sm" data-rm="${i}" aria-label="Șterge întrebarea" title="Șterge">×</button></span>` : ""}</div>
+const qHtml = (q, i, k, ev, p, N) => `<li class="qs" data-i="${i}"><div class="qh"><b>${i + 1}</b><span class="pill">${TY[q.t]}</span><span class="tag pts">${p} p.</span>${ev ? `<span class="qa">${N > 1 ? `<button type="button" class="ib sm" data-up="${i}" aria-label="Mută sus" ${i ? "" : "disabled"}>↑</button><button type="button" class="ib sm" data-dn="${i}" aria-label="Mută jos" ${i < N - 1 ? "" : "disabled"}>↓</button>` : ""}<button type="button" class="ib sm" data-ed="${i}" aria-label="Editează întrebarea" title="Editează">✎</button><button type="button" class="ib sm" data-re="${i}" aria-label="Schimbă întrebarea" title="Schimbă">↻</button><button type="button" class="ib sm" data-rm="${i}" aria-label="Șterge întrebarea" title="Șterge">×</button></span>` : ""}</div>
 <p class="qt">${q.t === "tf" ? "Adevărat sau fals? " : ""}${esc(q.q)}</p>${hintOf(q) ? `<p class="tag">${hintOf(q)}</p>` : ""}${q.t === "mcq" ? `<div class="opts">${q.o.map((o, j) => `<label class="opt"><input type="radio" name="q${i}" value="${j}" ${ev ? "disabled" : ""}><span><b>${OL[j]}</b>${esc(o)}</span></label>`).join("")}</div>` : q.t === "tf" ? `<div class="opts two"><label class="opt"><input type="radio" name="q${i}" value="1" ${ev ? "disabled" : ""}><span>Adevărat</span></label><label class="opt"><input type="radio" name="q${i}" value="0" ${ev ? "disabled" : ""}><span>Fals</span></label></div>` : q.t === "match" ? `<div class="mt2">${q.L.map((t, j) => `<label class="mrow"><span>${j + 1}. ${esc(t)}</span><select data-mi="${i}" ${ev ? "disabled" : ""}><option value="">—</option>${q.R.map((_, r) => `<option value="${r}">${OL[r]}</option>`).join("")}</select></label>`).join("")}<ul class="mr">${q.R.map((r, j) => `<li><b>${OL[j]}</b> ${esc(r)}</li>`).join("")}</ul></div>` : q.t === "open" || q.t === "prob" ? `<textarea id="a${i}" class="ans" rows="${q.t === "prob" ? 4 : 2}" ${ev ? "disabled" : ""} placeholder="Răspunsul tău"></textarea>` : `<input id="a${i}" class="ans" ${ev ? "disabled" : ""} autocomplete="off" inputmode="${q.t === "num" ? "decimal" : "text"}" placeholder="${q.t === "num" ? "Răspunsul tău (număr)" : "Răspunsul tău"}">`}
 ${ev ? `<p class="key">${q.t === "open" || q.t === "prob" ? "Barem" : "Răspuns corect"}: <b>${esc(correct(q, k))}</b></p>` : ""}<div class="fb" hidden></div></li>`;
 function drawTest() {
   const v = V[vi], ev = paper(), T = v.q.length, pts = v.q.reduce((a, _, i) => a + (v.p?.[i] || 1), 0);
   let body = ""; v.q.forEach((q, i) => { if (v.parts && (i === 0 || v.sc[i] !== v.sc[i - 1])) { const pt = v.parts[v.sc[i]]; body += `${i ? "</ol>" : ""}<div class="part"><h3>${esc(pt.t)}</h3><p class="tag">${esc(pt.d)}</p></div><ol class="qs-list" start="${i + 1}">`; } else if (!v.parts && (i === 0 || q.t !== v.q[i - 1].t)) { const hh = HEAD[q.t] || ["Întrebări", ""]; body += `${i ? "</ol>" : ""}<div class="part sub"><h3>${hh[0]}</h3><p class="tag">${hh[1]}</p></div><ol class="qs-list" start="${i + 1}">`; } body += qHtml(q, i, v.k[i], ev, v.p?.[i] || 1, T); });
-  $("#out").innerHTML = `<div class="card tst"><div class="th"><div><span class="pill">${esc(meta.materie)} · cl. ${esc(meta.clasa)}</span><h2>${esc(meta.tema)}</h2><p class="tag">${T} întrebări${v.md ? ` · ${pts} puncte · ${esc(v.md.nume)}` : ""} · ${v.ai ? "✦ creat cu AI din textul lecției" : "creat din textul lecției"}</p></div></div>
+  const scl = `<div class="scw"><h3>Scara de notare</h3><div class="scx"><table class="sct"><tbody><tr><th scope="row">Punctaj</th>${scale(pts).map(r => `<td>${rangeOf(r)}</td>`).join("")}</tr><tr><th scope="row">Nota</th>${scale(pts).map(r => `<td><b>${r.n}</b></td>`).join("")}</tr></tbody></table></div></div>`;
+  $("#out").innerHTML = `<div class="card tst"><div class="th"><div><span class="pill">${esc(meta.materie)} · cl. ${esc(meta.clasa)}</span><h2>${esc(meta.tema)}</h2><p class="tag">${T} întrebări · ${pts} puncte${v.md ? ` · ${esc(v.md.nume)}` : ""} · ${v.ai ? "✦ creat cu AI din textul lecției" : "creat din textul lecției"}</p></div></div>
 ${ev && V.length > 1 ? `<div class="tabs">${V.map((_, i) => chip(`data-v="${i}"`, i === vi, "Varianta " + (i + 1))).join("")}</div>` : ""}
 ${ev ? "" : `<div class="pbar"><span id="pt">0 / ${T} răspunsuri</span><i><u id="pf"></u></i></div>`}
-${body}</ol><div id="res"></div>
+${body}</ol>${scl}<div id="res"></div>
 <div class="row" style="margin-top:1.2rem">${ev ? `<button class="btn" id="pdf" type="button">⬇ Descarcă testul (PDF)</button><button class="btn o" id="key" type="button">⬇ Barem (PDF)</button><button class="btn o" id="addq" type="button">＋ Întrebare</button>` : `<button class="btn" id="chk" type="button">Verifică testul</button><button class="btn o" id="pdf" type="button">⬇ Descarcă PDF</button>`}<button class="btn o" id="again" type="button">Alt test nou</button></div></div>`;
 }
 const val = (i, q) => { if (q.t === "mcq" || q.t === "tf") return document.querySelector(`input[name=q${i}]:checked`)?.value ?? ""; if (q.t === "match") { const s = [...document.querySelectorAll(`select[data-mi="${i}"]`)].map(x => x.value); return s.some(x => x === "") ? "" : s.join(","); } return $(`#a${i}`)?.value.trim() ?? ""; };
@@ -187,7 +189,7 @@ $("#out").onclick = e => {
   if (d.rm !== undefined) { const i = +d.rm; [...SL, "p", "sc"].forEach(a => v[a]?.splice(i, 1)); return drawTest(); }
   const more = type => { let ng, t = 0; do ng = generate(P, { n: 1, types: type, level: S.lv }); while ((!ng.total || v.q.some(x => x.q === ng.q[0].q)) && t++ < 8); return ng.total ? ng : null; };
   if (d.re !== undefined) { const i = +d.re, ng = more([v.q[i].t]); if (!ng) return toast("Nu am altă întrebare de acest tip"); v.q[i] = ng.q[0]; v.k[i] = ng.k[0]; v.src[i] = ng.src[0]; return drawTest(); }
-  if (b.id === "addq") { const ng = more([...(mdl() ? ["mcq", "blank", "tf", "num", "match"] : S.ty)]); if (!ng) return toast("Nu am altă întrebare"); v.q.push(ng.q[0]); v.k.push(ng.k[0]); v.src.push(ng.src[0]); v.p ??= []; v.p.push(1); if (v.sc) v.sc.push(v.sc.at(-1) ?? 0); return drawTest(); }
+  if (b.id === "addq") { const ng = more([...(mdl() ? ["mcq", "blank", "tf", "num", "match"] : S.ty)]); if (!ng) return toast("Nu am altă întrebare"); v.q.push(ng.q[0]); v.k.push(ng.k[0]); v.src.push(ng.src[0]); v.p ??= []; v.p.push(wt(ng.q[0].t)); if (v.sc) v.sc.push(v.sc.at(-1) ?? 0); return drawTest(); }
 };
 $("#hist").onclick = e => { if (e.target.id === "clh") { localStorage.removeItem("thist"); drawHist(); } };
 /* ---------- PDF ---------- */

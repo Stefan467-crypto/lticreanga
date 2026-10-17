@@ -5,6 +5,7 @@ import { auth } from "../core/firebase.js";
 import { nz, checkTemplate, calc, parseC, exercisesOf } from "./engine.js";
 export const aiOn = () => !!AI_URL;
 export const pause = ms => new Promise(r => setTimeout(r, ms));
+let lastModel = ""; // modelul care a răspuns ultima dată (Gemini nu cere pauzele lungi necesare pentru limita pe minut Groq)
 // Extrage JSON-ul și din răspunsuri „murdare” (text înainte/după, ```json, virgule în plus).
 // JSON tăiat la limita de tokeni: păstrăm tot ce e complet (elemente întregi din liste) și închidem parantezele.
 const repair = t => {
@@ -33,6 +34,7 @@ async function call(prompt, opt = {}) {
     const j = await r.json().catch(() => ({}));
     if (r.status === 429 && tr < 1) { const m = /try again in ([\d.]+)\s*(ms|s|m)\b/i.exec(j.error || ""), w = m ? parseFloat(m[1]) * (m[2] === "ms" ? 1 : m[2] === "s" ? 1000 : 60000) : 0; if (w > 0 && w <= 45000) { await pause(w + 500); continue; } } // limita pe minut (Groq): așteptăm cât cere și mai încercăm o dată
     if (!r.ok) throw new Error(r.status === 429 ? "Limita gratuită AI s-a terminat pentru acum. Încearcă peste o oră sau mâine." : j.error || "Eroare AI (" + r.status + ")");
+    lastModel = j.model || "";
     try { return toJson(j.text); } catch (e) { if (tr >= 1) throw e; await pause(1500); } // o a doua încercare când JSON-ul vine tăiat sau stricat
   }
 }
@@ -164,7 +166,7 @@ export async function composeTest(texts, counts, { materie, clasa, level = 1, av
     for (const [pi, cn] of parts2.entries()) {
       if (!Object.values(cn).some(Boolean)) continue;
       try { const j = await composeBatch(b, cn, { materie, clasa, level, avoid: used, chapter }); if (j) { js.push(j); [...objs(j.grile), ...objs(j.adevarat_fals), ...objs(j.completari), ...objs(j.raspuns_scurt)].forEach(x => used.push(str(x.enunt, 120))); } } catch (e) { lastErr = e; }
-      await pause(i < batches.length - 1 || (pi === 0 && Object.values(parts2[1]).some(Boolean)) ? 9000 : 0);
+      await pause(i < batches.length - 1 || (pi === 0 && Object.values(parts2[1]).some(Boolean)) ? (/^gemini/.test(lastModel) ? 700 : 9000) : 0);
     }
   }
   if (!js.length) throw lastErr || new Error("AI nu a returnat nimic. Încearcă din nou.");

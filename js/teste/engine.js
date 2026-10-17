@@ -285,6 +285,13 @@ export function grade(q, k, a) {
   const v = parseFloat(String(a).replace(",", ".")); return isFinite(v) && Math.abs(v - k.v) <= Math.max(Math.abs(k.v) * .01, .011) ? 1 : 0;
 }
 export const nota = (s, t) => t ? Math.max(1, Math.round(10 * s / t)) : 0;
+/* Scara de notare pentru un test cu T puncte: [{n: nota, a: de la, b: până la}] — aceeași regulă ca în nota() (rotunjire la cel mai apropiat întreg).
+   Dacă testul are prea puține puncte și o notă nu poate fi obținută, a > b (în tabel apare „—”). */
+export const scale = T => { const lo = g => g <= 1 ? 0 : Math.ceil((g - .5) * T / 10 - 1e-9); return Array.from({ length: 10 }, (_, i) => { const g = i + 1; return { n: g, a: lo(g), b: g === 10 ? T : lo(g + 1) - 1 }; }); };
+export const rangeOf = r => r.a > r.b ? "—" : r.a === r.b ? String(r.a) : `${r.a}–${r.b}`;
+/* Punctaj pe exercițiu în testele „libere”: exercițiile mai grele valorează mai mult (grilă/adevărat-fals 1 p., completare/asociere 2 p., calcul/răspuns scurt 3 p., problemă 4 p.). */
+export const WEIGHT = { tf: 1, mcq: 1, blank: 2, match: 2, open: 3, num: 3, prob: 4 };
+export const wt = t => WEIGHT[t] || 1;
 export const correct = (q, k) => q.t === "open" || q.t === "prob" ? String(k) : q.t === "mcq" ? q.o[k] : q.t === "tf" ? (k ? "Adevărat" : "Fals") : q.t === "blank" ? k[0] : q.t === "match" ? q.L.map((_, i) => `${i + 1}→${"ABCD"[k[i]]}`).join("  ") : String(+k.v.toFixed(2)).replace(".", ",");
 
 /* ---- optimizări: analiză memorată și „câte întrebări permite lecția” ---- */
