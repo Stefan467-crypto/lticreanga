@@ -4,6 +4,7 @@ import { KIND, OPEN_KINDS, profile, models, total } from "../teste/exam.js";
 import { merge, parseC, withAi, generate, generateExam, grade, nota, correct, capacity } from "../teste/engine.js";
 import { DEMO } from "../teste/demo.js";
 import { aiOn, composeTest } from "../teste/ai.js";
+import { bankFor } from "../teste/formule.js";
 import { auth } from "../core/firebase.js";
 const TY = { mcq: "Grilă", tf: "Adevărat / Fals", blank: "Completare", num: "Problemă", match: "Asociere", open: "Răspuns scurt", prob: "Problemă cu rezolvare" }, LV = ["Ușor", "Mediu", "Greu"], OL = "ABCD";
 const idx = s => { const i = SUBJECTS.indexOf(s); return i < 0 ? 99 : i; }, slug = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), NC = (a, b) => String(a).localeCompare(String(b), "ro", { numeric: true });
@@ -20,7 +21,7 @@ let L = [], S = { mat: "", cl: "", kp: "", ids: new Set(), n: 10, lv: 1, ty: new
 /* ---------- date: textul lecției se aduce doar când e nevoie ---------- */
 const docOf = async l => l.text !== undefined ? { text: l.text, ai: l.ai } : (TXT[l.id] ??= (await getDoc(doc(db, "lectii_text", l.id))).data() || { text: "" });
 const texts = ls => Promise.all(ls.map(async l => ({ ...l, ...(await docOf(l)) })));
-const PL = l => withAi(parseC(l.text), l.ai);
+const PL = l => { const P = withAi(parseC(l.text), l.ai); return { ...P, probs: P.probs.concat(bankFor(l.materie, l.text, l.tema)) }; }; // + probleme-șablon pe materie (js/teste/formule.js), potrivite după conținutul lecției
 /* ---------- setări memorate pe dispozitiv ---------- */
 const saveS = () => { try { localStorage.tcfg2 = JSON.stringify({ mat: S.mat, cl: S.cl, kp: S.kp, ids: [...S.ids], n: S.n, lv: S.lv, ty: [...S.ty], mode: S.mode, nv: S.nv, md: S.md }); } catch (e) { } };
 const loadS = () => { try { const c = JSON.parse(localStorage.tcfg2 || "null"); if (c) Object.assign(S, c, { ids: new Set(c.ids || []), ty: new Set((c.ty || []).filter(x => x !== "prob").length ? c.ty.filter(x => x !== "prob") : ["mcq", "tf", "blank", "num"]) }); } catch (e) { } };

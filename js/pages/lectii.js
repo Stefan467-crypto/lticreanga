@@ -1,6 +1,7 @@
 import { $, esc, toast, whenRole, modal, sheet, can, user, db, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc, deleteField, doc, writeBatch } from "../core/core.js";
 import { aiOn, analyzeLesson, tocAI, pause } from "../teste/ai.js";
 import { readPage } from "../teste/reading.js";
+import { nrm, parseToc, outlineItems, goodToc, finish, findTocPages, isNotLesson, fixTitle } from "../teste/cuprins.js";
 import { SUBJECTS, CLASSES, classesOf, canon } from "../core/config.js";
 import { parse, parseC, statOf, clean } from "../teste/engine.js";
 import { DEMO } from "../teste/demo.js";
@@ -39,10 +40,6 @@ async function saveLesson(v, id, keepAi) {
   await setDoc(ref, { ...meta, st: statOf(parse(text)), ...(keepAi ? { aiok: true } : {}) });
   await setDoc(doc(db, "lectii_text", ref.id), keepAi ? { text } : { text, ai: deleteField() }, { merge: true }); return ref.id;
 }
-const NOTLESSON = /^(?:prefa[tț]|cuvânt înainte|cuvant inainte|cuprins|bibliografie|anex|indice|răspunsuri|raspunsuri|rezolvări|rezolvari|glosar|dic[tț]ionar|abrevieri|simboluri|norme de|coperta|evaluare|rezumat|extindere|tabelul|tabelele|conceptele de bază|conceptele de baza|recapitulare final|test de autoevaluare|lucrare de laborator nr\.?\s*\d+\s*$|cum utiliz)/i; // părți din manual care nu sunt teme de studiu
-// Unele manuale scriu titlurile cu majuscule mici („OsCIlațII șI unde meCanICe”): le aducem la forma normală
-const fixTitle = t => { t = t.replace(/\s+/g, " ").trim(); if (!/\p{Ll}\p{Lu}/u.test(t.replace(/\b[A-ZĂÂÎȘȚ]{2,}\b/gu, ""))) return t.replace(/([.!?]\s+)(\p{Ll})/gu, (m, a, b) => a + b.toUpperCase()); const m = /^((?:capitolul|unitatea|modulul|partea)\s+[\dIVXLC]+\.?\s*)?(.*)$/iu.exec(t), rest = (m[2] || "").toLowerCase().replace(/^\p{Ll}/u, c => c.toUpperCase()).replace(/([.!?]\s+)(\p{Ll})/gu, (x, a, b) => a + b.toUpperCase()); return ((m[1] || "").replace(/^(\p{L}+)(\s+)([\dIVXLCivxlc]+)/u, (x, w, sp, n) => w[0].toUpperCase() + w.slice(1).toLowerCase() + sp + n.toUpperCase()) + rest).trim(); };
-const dedupe = items => { items.forEach(x => { x.t = fixTitle(x.t); if (x.ch) x.ch = fixTitle(x.ch); }); const seen = new Set(); return items.filter((x, i) => { if (NOTLESSON.test(x.t.trim())) return false; const k = nrm(x.t) + "|" + x.p, prev = items[i - 1]; if (seen.has(k) || (prev && nrm(prev.t) === nrm(x.t) && (prev.ch || "") === (x.ch || ""))) return false; seen.add(k); return true; }); };
 /* ---------- citire PDF (pdf.js, încărcat doar când e nevoie) ---------- */
 const CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/", cache = {};
 async function lib() { if (!window.pdfjsLib) await new Promise((ok, no) => { const s = document.createElement("script"); s.src = CDN + "pdf.min.js"; s.onload = ok; s.onerror = () => no(new Error("Nu pot încărca modulul PDF (verifică internetul)")); document.head.append(s); }); pdfjsLib.GlobalWorkerOptions.workerSrc = CDN + "pdf.worker.min.js"; return pdfjsLib; }
@@ -52,53 +49,23 @@ async function openPdf(src) {
   else { if (cache[src]) return cache[src]; let r; try { r = await fetch(src); } catch (e) { throw new Error("Browserul nu permite citirea manualului de la acest link. Alege fișierul PDF de pe telefon sau încarcă manualul în Resurse (butonul +)."); } if (!r.ok) throw new Error("Manualul nu poate fi descărcat (cod " + r.status + ")"); data = await r.arrayBuffer(); }
   const pdf = await lb.getDocument({ data }).promise; if (typeof src === "string") cache[src] = pdf; return pdf;
 }
-async function pagesText(pdf, a, b) { // textul paginilor în ordinea de citire (coloane, casete, tabele) — vezi js/teste/reading.js
-  let out = ""; for (let i = Math.max(1, a); i <= Math.min(pdf.numPages, b); i++) out += readPage((await (await pdf.getPage(i)).getTextContent()).items) + "\n\n";
+async function pagesText(pdf, a, b, rows = false) { // textul paginilor în ordinea de citire (coloane, casete, tabele) — vezi js/teste/reading.js
+  let out = ""; for (let i = Math.max(1, a); i <= Math.min(pdf.numPages, b); i++) out += readPage((await (await pdf.getPage(i)).getTextContent()).items, rows) + "\n\n";
   return clean(out);
 }
-const withEnd = (items, last) => items.map((x, i) => ({ ...x, e: Math.max(x.p, Math.min(x.p + 11, (items[i + 1]?.p ?? last + 1) - 1)) }));
-async function toc(pdf) { // cuprinsul (semnele de carte) din PDF → capitole cu teme și pagini
-  const out = await pdf.getOutline(); if (!out || !out.length) return []; const items = [];
-  const walk = async (arr, ch, d) => { for (const it of arr) { if (it.items && it.items.length && d < 2) { await walk(it.items, d === 0 ? it.title.trim() : ch, d + 1); continue; } let pg = 0; try { let dest = it.dest; if (typeof dest === "string") dest = await pdf.getDestination(dest); if (Array.isArray(dest)) pg = (await pdf.getPageIndex(dest[0])) + 1; } catch (e) { } if (pg) items.push({ t: it.title.trim(), p: pg, ch }); } };
-  await walk(out, "", 0); items.sort((a, b) => a.p - b.p); return withEnd(dedupe(items), pdf.numPages);
-}
 /* ---------- cuprins tipărit: citit din paginile alese de profesor ---------- */
-const nrm = t => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
-const CHRE = /^(capitolul|capitol|cap\.|unitatea(?:\s+de\s+(?:învățare|invatare))?|modulul|partea)\s+[\dIVXLC]+/i;
-function parseToc(text) { // „Capitolul 1 …”, apoi „Titlu ........ 45” → [{t, p, ch}]
-  const out = []; let buf = "", ch = "";
-  for (const raw of text.split("\n")) {
-    const l = raw.replace(/\s+/g, " ").trim(); if (!l || /^(cuprins|conținut|continut|pagina|pag\.?)$/i.test(l)) continue;
-    const mp = /^(.*\p{L}.*?)[\s.·…_\-–—]+(\d{1,3})$/u.exec(l);
-    if (CHRE.test(l)) { ch = (mp ? mp[1] : l).replace(/[\s.·…_\-–—]+$/, "").trim(); buf = ""; continue; }
-    let t = "", p = 0;
-    if (/^\d{1,3}$/.test(l)) { if (buf) { t = buf; p = +l; } } else if (mp) { t = (buf ? buf + " " : "") + mp[1]; p = +mp[2]; } else { buf = (buf && buf.length < 110 ? buf + " " : "") + l; continue; }
-    buf = ""; t = t.replace(/[\s.·…_\-–—]+$/, "").trim(); if (p && (t.match(/\p{L}/gu) || []).length >= 4) out.push({ t, p, ch });
-  }
-  const keep = []; let last = 0; for (const x of dedupe(out)) if (x.p >= last - 1) { keep.push(x); last = Math.max(last, x.p); }
-  const RO = /^([IVXL]{1,5})\.\s+(\p{Lu}.*)$/u, ro = keep.filter(x => RO.test(x.t)).length; // „II. MĂRIMI FIZICE” urmat de „2.1 …”, „2.2 …” → capitol
-  if (ro >= 2) { let cur = ""; const out = []; for (const x of keep) { if (RO.test(x.t)) { cur = x.t; continue; } if (/^(norme|prefa|cuvânt|cuvant|dragă|draga)/i.test(x.t)) continue; out.push({ ...x, ch: x.ch || cur }); } return out; }
-  const nums = keep.filter(x => /^\d+\.\d+/.test(x.t)).length; // „1. Mecanica” urmat de „1.1 …”, „1.2 …” → capitol
-  if (nums >= 3) { let cur = ""; for (const x of keep) { const m = /^(\d+)\.(?!\d)\s*(.+)/.exec(x.t); if (m && keep.some(y => y.t.startsWith(m[1] + "."+ "1"))) { cur = x.t; x.hdr = 1; } else if (!x.ch && /^\d+\.\d+/.test(x.t)) x.ch = cur; } return keep.filter(x => !x.hdr); }
-  return keep;
-}
 async function findOffset(pdf, items, t1, t2) { // diferența dintre numărul tipărit și pagina din PDF
   for (const it of items.slice(0, 4)) { const key = nrm(it.t).slice(0, 26); if (key.length < 8) continue; for (let off = 0; off <= 45; off++) { const pg = it.p + off; if (pg > pdf.numPages) break; if (pg >= t1 && pg <= t2) continue; if (nrm(await pagesText(pdf, pg, pg)).includes(key)) return off; } }
   return 0;
 }
 async function tocFromPages(pdf, t1, t2, offManual, ai) {
-  const raw = await pagesText(pdf, t1, t2), items = dedupe(ai ? await tocAI(raw) : parseToc(raw)); if (!items.length) return { T: [], off: 0 };
-  const off = offManual ?? await findOffset(pdf, items, t1, t2), last = t1 > pdf.numPages / 2 ? t1 - 1 : pdf.numPages; // cuprins la sfârșit → ultima pagină de lecție e cea de dinainte
-  return { off, T: withEnd(items.map(x => ({ ...x, p: x.p + off })).filter(x => x.p <= last), last) };
+  const raw = await pagesText(pdf, t1, t2, true), items = ai ? (await tocAI(raw)).map(x => ({ ...x, t: fixTitle(x.t), ch: x.ch ? fixTitle(x.ch) : x.ch, skip: isNotLesson(x.t) })) : parseToc(raw); if (!items.some(x => !x.skip)) return { T: [], off: 0 };
+  const off = offManual ?? await findOffset(pdf, items.filter(x => !x.skip), t1, t2), last = t1 > pdf.numPages / 2 ? t1 - 1 : pdf.numPages; // cuprins la sfârșit → ultima pagină de lecție e cea de dinainte
+  return { off, T: finish(items.map(x => ({ ...x, p: x.p + off })).filter(x => x.p <= last), last) };
 }
-async function findTocPages(pdf) { // caută singur pagina „Cuprins”
-  const N = pdf.numPages, order = [...Array(Math.min(30, N)).keys()].map(i => i + 1).concat(Array.from({ length: Math.min(15, N) }, (_, i) => N - i).reverse().filter(i => i > 30));
-  for (const i of order) {
-    const tx = await pagesText(pdf, i, i); if (!/cuprins|con[tț]inut/i.test(nrm(tx)) && !(tx.split("\n").filter(l => /[\p{L}].*[\s.·…]\d{1,3}$/u.test(l.trim())).length >= 8)) continue;
-    if (parseToc(tx).length < 4) continue; let e = i; while (e < Math.min(i + 4, N) && parseToc(await pagesText(pdf, e + 1, e + 1)).length >= 4) e++; return [i, e];
-  }
-  return null;
-}
+async function toc(pdf) { const it = await outlineItems(pdf); return goodToc(it) ? finish(it, pdf.numPages) : []; } // semnele de carte, doar dacă arată a cuprins adevărat
+const findToc = pdf => findTocPages(pdf, (p, a, b) => pagesText(p, a, b, true));
+
 async function renderPage(pdf, n, canvas) { const pg = await pdf.getPage(n), v0 = pg.getViewport({ scale: 1 }), sc = Math.min(2, 760 / v0.width), v = pg.getViewport({ scale: sc }); canvas.width = v.width; canvas.height = v.height; await pg.render({ canvasContext: canvas.getContext("2d"), viewport: v }).promise; }
 const tocText = T => { let cur = null, o = []; for (const x of T) { if ((x.ch || "") !== cur) { cur = x.ch || ""; if (cur) o.push("# " + cur); } o.push(`${x.t} | ${x.p}-${x.e}`); } return o.join("\n"); };
 /* ---------- adăugare ---------- */
@@ -131,7 +98,7 @@ function importMan() {
       if (+E.t1.value) { const r = await tocFromPages(pdf, +E.t1.value, +E.t2.value || +E.t1.value, E.off.value === "" ? null : +E.off.value, ai); T = r.T; if (E.off.value === "") E.off.value = r.off; how = `din paginile ${E.t1.value}–${E.t2.value || E.t1.value}`; }
       else {
         T = ai ? [] : await toc(pdf); how = "din semnele de carte ale PDF-ului";
-        if (!T.length) { const f = await findTocPages(pdf); if (f) { E.t1.value = f[0]; E.t2.value = f[1]; const r = await tocFromPages(pdf, f[0], f[1], E.off.value === "" ? null : +E.off.value, ai); T = r.T; E.off.value = r.off; how = `din paginile ${f[0]}–${f[1]} (le-am găsit eu)`; } }
+        if (!T.length) { const f = await findToc(pdf); if (f) { E.t1.value = f[0]; E.t2.value = f[1]; const r = await tocFromPages(pdf, f[0], f[1], E.off.value === "" ? null : +E.off.value, ai); T = r.T; E.off.value = r.off; how = `din paginile ${f[0]}–${f[1]} (le-am găsit eu)`; } }
       }
       if (!T.length) { toast("Nu am găsit cuprinsul. Apasă „Vezi paginile manualului”, găsește pagina cuprinsului și apasă „Cuprinsul începe aici”."); $("#pvbox").hidden ? $("#pv").click() : 0; }
       else { E.t.value = tocText(T); const nc = new Set(T.map(x => x.ch).filter(Boolean)).size; toast(`Am găsit ${nc ? nc + " capitole și " : ""}${T.length} teme ${how}. Șterge rândurile care nu te interesează.`); }
