@@ -450,16 +450,6 @@ main,.wrap,.card,.grp,.chh,.posts>*{min-width:0}
 /* anunțuri: pe telefon (o coloană) nu există lărgire */
 @media(max-width:639px){.posts .post.wide{grid-column:auto}}
 
-/* ===== ajutor la citire (js/core/helper.js) ===== */
-.hl{position:fixed;left:.8rem;bottom:calc(.8rem + env(safe-area-inset-bottom));z-index:19;display:flex;gap:.25rem;padding:.3rem;border-radius:999px;background:var(--card);border:1px solid var(--bd);box-shadow:0 12px 30px -14px rgba(30,8,12,.5)}
-.hl button{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-width:48px;min-height:48px;padding:0 .8rem;border:0;border-radius:999px;background:var(--soft);color:var(--fg);font:700 1.05rem var(--sans);cursor:pointer;transition:background-color .18s,color .18s}
-.hl button small{font-size:.9em;margin-left:-.1em}
-.hl .say{background:var(--ac);color:var(--on);font-size:.86rem;letter-spacing:.04em;padding:0 1rem 0 .85rem}
-.hl .say[aria-pressed=true]{background:#b3261e;color:#fff}
-@media (hover:hover){.hl button:hover{background:color-mix(in srgb,var(--ac) 18%,var(--soft));color:var(--ac)}.hl .say:hover{background:color-mix(in srgb,var(--ac) 78%,#000);color:var(--on)}}
-@media print{.hl{display:none}}
-@media (max-width:420px){.hl .say span{display:none}.hl .say{padding:0}}
-body{padding-bottom:5rem}
 /* butonul spre Baza de lecții (pagina generatorului) */
 .phr{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.8rem 1.4rem}.phr h1{margin:0}
 .btn.lib{gap:.6rem;min-height:52px;font-size:.9rem;box-shadow:0 10px 24px -14px color-mix(in srgb,var(--ac) 90%,transparent)}

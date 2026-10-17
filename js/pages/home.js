@@ -77,7 +77,21 @@ document.addEventListener("click", async e => {
   const [c, id] = b.dataset.del.split("/"); await deleteDoc(doc(db, c, id)); document.querySelectorAll("dialog[open]").forEach(d => d.close()); c === "anunturi" ? loadA() : loadE();
 });
 /* feedback */
-$("#ff").onsubmit = async e => { e.preventDefault(); const b = e.target.querySelector(".btn"); b.disabled = true; try { await addDoc(collection(db, "feedback"), { n: $("#fN").value, t: $("#fT").value, d: new Date().toISOString() }); e.target.reset(); toast("Mulțumim pentru mesaj!"); } catch (x) { toast("Mesajul nu a putut fi trimis"); } b.disabled = false; };
+$("#ff").onsubmit = async e => {
+  e.preventDefault(); const f = e.target, b = f.querySelector(".btn");
+  if (f.querySelector("[name=_honey]").value) return; // capcană anti-spam: boții completează câmpul ascuns
+  b.disabled = true;
+  try {
+    const r = await fetch("https://formsubmit.co/ajax/popovstefan786@gmail.com", {
+      method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ Nume: $("#fN").value.trim() || "anonim", Mesaj: $("#fT").value, _subject: "Feedback nou — site-ul liceului", _template: "table", _captcha: "false" })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || String(j.success) === "false") throw new Error(j.message || "eroare");
+    f.reset(); toast("Mulțumim pentru mesaj!");
+  } catch (x) { toast("Mesajul nu a putut fi trimis"); }
+  b.disabled = false;
+};
 whenRole(() => { loadA().catch(() => $("#posts").innerHTML = '<p class="tag mid">Anunțurile nu pot fi încărcate.</p>'); loadE().catch(drawE); });
 
 if (location.hash.length > 1) setTimeout(() => { try { $(location.hash).scrollIntoView(); } catch (e) { } }, 900);

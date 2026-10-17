@@ -128,7 +128,6 @@ let A = {}; try { A = JSON.parse(localStorage.a11y || "{}"); } catch (e) { }
 const applyA = () => { const d = document.documentElement; d.style.setProperty("--fs", A.fs || 1); ["hc", "dys", "calm", "big"].forEach(k => d.classList.toggle("a-" + k, !!A[k])); try { localStorage.a11y = JSON.stringify(A); } catch (e) { } ap && ap.querySelectorAll("[data-a]").forEach(b => { if (["hc", "dys", "calm", "big"].includes(b.dataset.a)) b.setAttribute("aria-pressed", !!A[b.dataset.a]); }); };
 const ap = $("#a11y");
 if (ap) { ap.innerHTML = '<button data-a="fs-">A−</button><button data-a="fs+">A+</button><button data-a="hc">Contrast ridicat</button><button data-a="dys">Citire ușoară</button><button data-a="big">Butoane mari</button><button data-a="calm">Fără animații</button><button data-a="reset">Resetează</button>'; applyA(); ap.onclick = e => { const k = e.target.dataset.a; if (!k) return; if (k === "fs+") A.fs = Math.min(1.6, +((A.fs || 1) + .1).toFixed(2)); else if (k === "fs-") A.fs = Math.max(.9, +((A.fs || 1) - .1).toFixed(2)); else if (k === "reset") A = {}; else A[k] = !A[k]; applyA(); }; }
-addEventListener("a11y-change", () => { try { A = JSON.parse(localStorage.a11y || "{}"); } catch (e) { } if (ap) applyA(); }); // bara A− / A+ din js/core/helper.js
 /* aplicație instalabilă (PWA) */
 let ip; addEventListener("beforeinstallprompt", e => { e.preventDefault(); ip = e; const b = $("#inst"); if (b) b.hidden = false; });
 const ib = $("#inst"); if (ib) ib.onclick = async () => { if (!ip) return; ip.prompt(); await ip.userChoice; ib.hidden = true; };

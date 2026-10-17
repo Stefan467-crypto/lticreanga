@@ -31,9 +31,5 @@ service cloud.firestore {
       allow read: if col in ['evenimente','pagini','profesori','regulamente','orar','consiliu','succese'];
       allow write: if admin() && col in ['evenimente','pagini','profesori','regulamente','orar','consiliu','succese'];
     }
-    match /feedback/{id} {
-      allow create: if true;
-      allow read, delete: if admin();
-    }
   }
 }
