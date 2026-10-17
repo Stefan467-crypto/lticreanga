@@ -21,7 +21,7 @@ function build(sel) {
   sel.addEventListener("change", () => api.refresh());
   sel.addEventListener("focus", () => { if (!btn.disabled) btn.focus(); }); // click pe <label> → câmpul nostru
   new MutationObserver(() => api.refresh()).observe(sel, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "hidden", "label"], characterData: true });
-  btn.addEventListener("click", e => { e.preventDefault(); open === api ? close() : show(api); });
+  btn.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); /* handlerele paginii (ex. „orice <button> din #cfg redesenează formularul”) nu trebuie să vadă clickul, altfel select-ul se reconstruiește sub noi */ open === api ? close() : show(api); });
   btn.addEventListener("keydown", e => {
     if (open === api) return; // lista e deschisă: tastele sunt tratate de key()
     if (["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) { e.preventDefault(); show(api, e.key === "ArrowUp" ? -1 : 0); }
@@ -61,7 +61,7 @@ function show(api, dir = 0) {
   place(api);
   const on = l.querySelector('[aria-selected="true"]') || l.querySelector(".dd-o:not([aria-disabled])"); if (on) { on.scrollIntoView({ block: "nearest" }); on.classList.add("hot"); }
   l.addEventListener("pointerover", e => { const o = e.target.closest(".dd-o"); if (o && !o.hasAttribute("aria-disabled")) { l.querySelectorAll(".hot").forEach(x => x.classList.remove("hot")); o.classList.add("hot"); } });
-  l.addEventListener("click", e => { const o = e.target.closest(".dd-o"); if (o && !o.hasAttribute("aria-disabled")) pick(api, o.dataset.v); });
+  l.addEventListener("click", e => { e.stopPropagation(); const o = e.target.closest(".dd-o"); if (o && !o.hasAttribute("aria-disabled")) pick(api, o.dataset.v); });
   l.addEventListener("keydown", e => key(api, e));
   api.btn.addEventListener("keydown", api._k = e => key(api, e)); // tastele merg și cât timp focusul rămâne pe câmp
   if (dir < 0) move(l, -1);
