@@ -200,7 +200,7 @@ export function generate(P, { n = 10, types = ["mcq", "tf", "blank", "num"], lev
   const clip = (s, n = 130) => s.length > n ? s.slice(0, n).replace(/\s+\S*$/, "") + "…" : s;
   const optsQ = (ans, wrong) => { const o = shuf([ans, ...wrong]); return { o, k: o.indexOf(ans) }; };
   const G = { mcq: [], tf: [], blank: [], num: [], match: [], open: [], prob: [] };
-  P.defs.forEach((d, i) => { if (P.defs.length >= 4) { G.mcq.push({ sig: `m|d${i}|r`, f: () => { const w = shuf(P.defs.filter(x => x.term !== d.term)).slice(0, 3).map(x => cap(x.term)); const { o, k } = optsQ(cap(d.term), w); return { t: "mcq", q: `Care noțiune corespunde descrierii: „${clip(d.def, 170)}”?`, o, k, src: d.src }; } }); G.mcq.push({ sig: `m|d${i}|f`, f: () => { const w = shuf(P.defs.filter(x => x.term !== d.term)).slice(0, 3).map(x => clip(cap(x.def), 110)); const { o, k } = optsQ(clip(cap(d.def), 110), w); return { t: "mcq", q: `Ce reprezintă „${d.term}”?`, o, k, src: d.src }; } }); } });
+  P.defs.forEach((d, i) => { if (P.defs.length >= 4) { G.mcq.push({ sig: `m|d${i}|r`, f: () => { const sn = new Set([nz(d.term)]), w = shuf(P.defs.filter(x => x.term !== d.term)).map(x => cap(x.term)).filter(x => !sn.has(nz(x)) && sn.add(nz(x))).slice(0, 3); if (w.length < 3) return null; const { o, k } = optsQ(cap(d.term), w); return { t: "mcq", q: `Care noțiune corespunde descrierii: „${clip(d.def, 170)}”?`, o, k, src: d.src }; } }); G.mcq.push({ sig: `m|d${i}|f`, f: () => { const sn = new Set([nz(clip(cap(d.def), 110))]), w = shuf(P.defs.filter(x => x.term !== d.term)).map(x => clip(cap(x.def), 110)).filter(x => !sn.has(nz(x)) && sn.add(nz(x))).slice(0, 3); if (w.length < 3) return null; const { o, k } = optsQ(clip(cap(d.def), 110), w); return { t: "mcq", q: `Ce reprezintă „${d.term}”?`, o, k, src: d.src }; } }); } });
   P.sents.forEach((s, i) => {
     const t = target(s); if (!t) return;
     G.mcq.push({ sig: `m|c${i}`, f: () => { const w = distract(t, s, 3); if (!w) return null; const { o, k } = optsQ(t.a, w); return { t: "mcq", q: `Alege varianta corectă: ${blankOut(s, t)}`, o, k, src: s }; } });
@@ -216,7 +216,7 @@ export function generate(P, { n = 10, types = ["mcq", "tf", "blank", "num"], lev
   P.forms.forEach((fm, i) => {
     const form = `${fm.left} = ${fm.right}`;
     if (fm.name && P.forms.filter(x => x.name).length >= 3) G.mcq.push({ sig: `m|f${i}`, f: () => { const w = shuf(P.forms.filter(x => x !== fm)).slice(0, 3).map(x => `${x.left} = ${x.right}`); const { o, k } = optsQ(form, w); return { t: "mcq", q: `Care este formula pentru „${fm.name}”?`, o, k, src: form }; } });
-    const vs = fm.right.match(/[A-Za-zα-ωΔ][A-Za-z0-9_]*/g); if (vs && vs.length) G.blank.push({ sig: `b|f${i}`, f: () => { const v = pick(vs); return { t: "blank", q: `Completează formula: ${fm.left} = ${fm.right.replace(new RegExp(`(?<![\\p{L}\\d])${esc(v)}(?![\\p{L}\\d])`, "u"), "_____")}`, k: [v], src: form }; } });
+    const vs = /\p{L}{5,}/u.test(fm.right) || /\p{L}{5,}/u.test(fm.left) ? null : fm.right.match(/(?<![\p{L}\d])[A-Za-zα-ωΔ][A-Za-z0-9_]*(?![\p{L}\d])/gu); if (vs && vs.length) G.blank.push({ sig: `b|f${i}`, f: () => { const v = pick(vs); return { t: "blank", q: `Completează formula: ${fm.left} = ${fm.right.replace(new RegExp(`(?<![\\p{L}\\d])${esc(v)}(?![\\p{L}\\d])`, "u"), "_____")}`, k: [v], src: form }; } });
     if (fm.name) G.open.push({ sig: `o|f${i}`, f: () => ({ t: "open", q: `Scrie formula pentru „${fm.name}” și explică ce înseamnă fiecare literă.`, k: form, src: form }) });
   });
   /* asocieri: 4 noțiuni ↔ 4 descrieri */
@@ -244,7 +244,7 @@ export function generate(P, { n = 10, types = ["mcq", "tf", "blank", "num"], lev
   (X.blank || []).forEach((m, i) => G.blank.push({ sig: `x|b${i}`, f: () => ({ t: "blank", q: "Completează: " + m.q.replace(/_{2,}/g, "_____"), k: [m.a, m.a.replace(/\s/g, "")], src: m.src }) }));
   (X.open || []).forEach((m, i) => G.open.push({ sig: `x|o${i}`, f: () => ({ t: "open", q: m.q, k: m.a, src: m.src }) }));
   const en = types.filter(t => G[t] && G[t].length); if (!en.length) return { q: [], k: [], src: [], sigs: [], used: [], total: 0 };
-  const W0 = { mcq: [.45, .35, .25], tf: [.25, .2, .15], blank: [.2, .25, .3], num: [.1, .2, .3], match: [.1, .1, .1], open: [.2, .2, .2], prob: [.2, .2, .2] }, sum = en.reduce((a, t) => a + W0[t][level], 0);
+  const W0 = { mcq: [.45, .35, .25], tf: [.25, .2, .15], blank: [.2, .25, .3], num: [.3, .4, .5], match: [.1, .1, .1], open: [.2, .2, .2], prob: [.2, .2, .2] }, sum = en.reduce((a, t) => a + W0[t][level], 0);
   const quota = {}; let left = n; en.forEach(t => { quota[t] = Math.min(G[t].length * (t === "num" ? 3 : 1), Math.round(n * W0[t][level] / sum)); left -= quota[t]; });
   const items = [], used = new Set(), sigs = [];
   const skOf = sig => { let m; if ((m = /^m\|d(\d+)\|/.exec(sig))) return "s" + P.defs[+m[1]].src; if ((m = /^[mbt]\|f(\d+)$/.exec(sig)) || (m = /^o\|f(\d+)$/.exec(sig))) return "f" + m[1]; if ((m = /^o\|d(\d+)$/.exec(sig))) return "s" + P.defs[+m[1]].src; if ((m = /^[mbt]\|c?(\d+)$/.exec(sig))) return "s" + P.sents[+m[1]]; if ((m = /^r\|(\d+)$/.exec(sig))) return "r" + m[1]; if ((m = /^x\|([mtbo])(\d+)$/.exec(sig))) return "s" + X[{ m: "mcq", t: "tf", b: "blank", o: "open" }[m[1]]][+m[2]].src; return ""; };

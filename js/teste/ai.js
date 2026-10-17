@@ -16,12 +16,13 @@ const repair = t => {
     else if (c === "}" || c === "]") { st.pop(); if (st.length >= 1 && st.length <= 2) { cutAt = i + 1; closers = st.map(x => x === "{" ? "}" : "]").reverse().join(""); } }
   }
   if (cutAt < 0) throw new Error("fără element complet");
-  return JSON.parse(t.slice(0, cutAt) + closers);
+  return obj(JSON.parse(t.slice(0, cutAt) + closers));
 };
+const obj = v => { if (v && typeof v === "object" && !Array.isArray(v)) return v; throw new Error("nu e obiect"); };
 const toJson = raw => {
   const t = String(raw || "").replace(/^\s*```(?:json)?/i, "").replace(/```\s*$/, "").trim();
-  try { return JSON.parse(t); } catch (e) { }
-  const a = t.indexOf("{"), b = t.lastIndexOf("}"); if (a >= 0 && b > a) { const c = t.slice(a, b + 1); try { return JSON.parse(c); } catch (e) { try { return JSON.parse(c.replace(/,\s*([}\]])/g, "$1")); } catch (e2) { } } }
+  try { return obj(JSON.parse(t)); } catch (e) { }
+  const a = t.indexOf("{"), b = t.lastIndexOf("}"); if (a >= 0 && b > a) { const c = t.slice(a, b + 1); try { return obj(JSON.parse(c)); } catch (e) { try { return obj(JSON.parse(c.replace(/,\s*([}\]])/g, "$1"))); } catch (e2) { } } }
   try { const a2 = t.indexOf("{"); if (a2 >= 0) return repair(t.slice(a2)); } catch (e3) { }
   throw new Error("Răspunsul AI nu e valid. Încearcă din nou.");
 };
@@ -35,17 +36,17 @@ async function call(prompt, opt = {}) {
     try { return toJson(j.text); } catch (e) { if (tr >= 1) throw e; await pause(1500); } // o a doua încercare când JSON-ul vine tăiat sau stricat
   }
 }
-const arr = x => Array.isArray(x) ? x : [], str = (x, n = 400) => typeof x === "string" ? x.trim().slice(0, n) : "";
+const arr = x => Array.isArray(x) ? x : [], objs = x => arr(x).filter(v => v && typeof v === "object" && !Array.isArray(v)), str = (x, n = 400) => typeof x === "string" ? x.trim().slice(0, n) : "";
 const inText = (hay, src) => { const n = nz(src); return n.length >= 15 && hay.includes(n.slice(0, 80)); };
 export function validate(j, text) {
   const hay = nz(text), ok = { v: 1, ts: Date.now(), defs: [], mcq: [], tf: [], blank: [], open: [], sols: [], tpl: [] }, seen = new Set();
-  for (const d of arr(j.definitii)) { const term = str(d.termen, 60), def = str(d.definitie, 400), src = str(d.sursa, 300); if (term && def.length >= 15 && term.split(/\s+/).length <= 6 && inText(hay, src) && !seen.has(nz(term))) { seen.add(nz(term)); ok.defs.push({ term, def, src }); } }
-  for (const m of arr(j.grile)) { const q = str(m.enunt), o = arr(m.variante).map(x => str(x, 160)), k = +m.corect, src = str(m.sursa, 300); if (q.length >= 12 && o.length === 4 && o.every(Boolean) && new Set(o.map(nz)).size === 4 && k >= 0 && k <= 3 && Number.isInteger(k) && inText(hay, src)) ok.mcq.push({ q, o, k, src }); }
-  for (const m of arr(j.adevarat_fals)) { const q = str(m.enunt), src = str(m.sursa, 300); if (q.length >= 12 && typeof m.adevarat === "boolean" && inText(hay, src)) ok.tf.push({ q, k: m.adevarat, src }); }
-  for (const m of arr(j.completari)) { const q = str(m.enunt), a = str(m.raspuns, 60), src = str(m.sursa, 300); if (/_{2,}/.test(q) && a && inText(hay, src)) ok.blank.push({ q, a, src }); }
-  for (const m of arr(j.raspuns_scurt)) { const q = str(m.enunt), a = str(m.model, 500), src = str(m.sursa, 300); if (q.length >= 12 && a.length >= 10 && inText(hay, src)) ok.open.push({ q, a, src }); }
-  for (const m of arr(j.probleme)) { const q = str(m.enunt, 700), r = str(m.rezolvare, 900), a = str(m.raspuns, 120); if (q.length >= 25 && (r || a) && hay.includes(nz(q).slice(0, 40))) ok.sols.push({ q, a: (r + (a ? "\nRăspuns: " + a : "")).trim() }); }
-  for (const t of arr(j.sabloane)) { const p = str(t, 700).replace(/=>\s*$/, ""); if (p && checkTemplate(p)) ok.tpl.push(p); }
+  for (const d of objs(j.definitii)) { const term = str(d.termen, 60), def = str(d.definitie, 400), src = str(d.sursa, 300); if (term && def.length >= 15 && term.split(/\s+/).length <= 6 && inText(hay, src) && !seen.has(nz(term))) { seen.add(nz(term)); ok.defs.push({ term, def, src }); } }
+  for (const m of objs(j.grile)) { const q = str(m.enunt), o = arr(m.variante).map(x => str(x, 160)), k = +m.corect, src = str(m.sursa, 300); if (q.length >= 12 && o.length === 4 && o.every(Boolean) && new Set(o.map(nz)).size === 4 && k >= 0 && k <= 3 && Number.isInteger(k) && inText(hay, src)) ok.mcq.push({ q, o, k, src }); }
+  for (const m of objs(j.adevarat_fals)) { const q = str(m.enunt), src = str(m.sursa, 300); if (q.length >= 12 && typeof m.adevarat === "boolean" && inText(hay, src)) ok.tf.push({ q, k: m.adevarat, src }); }
+  for (const m of objs(j.completari)) { const q = str(m.enunt), a = str(m.raspuns, 60), src = str(m.sursa, 300); if (/_{2,}/.test(q) && a && inText(hay, src)) ok.blank.push({ q, a, src }); }
+  for (const m of objs(j.raspuns_scurt)) { const q = str(m.enunt), a = str(m.model, 500), src = str(m.sursa, 300); if (q.length >= 12 && a.length >= 10 && inText(hay, src)) ok.open.push({ q, a, src }); }
+  for (const m of objs(j.probleme)) { const q = str(m.enunt, 700), r = str(m.rezolvare, 900), a = str(m.raspuns, 120); if (q.length >= 25 && (r || a) && hay.includes(nz(q).slice(0, 40))) ok.sols.push({ q, a: (r + (a ? "\nRăspuns: " + a : "")).trim() }); }
+  for (const t of objs(j.sabloane)) { const p = str(t, 700).replace(/=>\s*$/, ""); if (p && checkTemplate(p)) ok.tpl.push(p); }
   return ok;
 }
 export async function analyzeLesson(text, { materie, clasa, tema }) {
@@ -74,7 +75,7 @@ Returnează DOAR JSON: {"capitole":[{"titlu":"","teme":[{"titlu":"","pagina":0}]
 TEXT:
 ${raw.slice(0, 20000)}`);
   const out = [], seen = new Set();
-  for (const c of arr(j.capitole)) for (const t of arr(c.teme)) { const p = +t.pagina, ti = str(t.titlu, 160); if (ti && Number.isInteger(p) && p > 0 && !seen.has(nz(ti) + "|" + p)) { seen.add(nz(ti) + "|" + p); out.push({ t: ti, p, ch: str(c.titlu, 120) }); } }
+  for (const c of objs(j.capitole)) for (const t of objs(c.teme)) { const p = +t.pagina, ti = str(t.titlu, 160); if (ti && Number.isInteger(p) && p > 0 && !seen.has(nz(ti) + "|" + p)) { seen.add(nz(ti) + "|" + p); out.push({ t: ti, p, ch: str(c.titlu, 120) }); } }
   return out.sort((a, b) => a.p - b.p);
 }
 
@@ -107,13 +108,37 @@ function splitCounts(counts, w) { // împarte cantitățile pe loturi, proporți
   for (const [k, n] of Object.entries(counts)) { const raw = w.map(x => n * x / tot), fl = raw.map(Math.floor); let rest = n - fl.reduce((a, b) => a + b, 0); raw.map((r, i) => [r - fl[i], i]).sort((a, b) => b[0] - a[0]).forEach(([_, i]) => { if (rest-- > 0) fl[i]++; }); fl.forEach((v, i) => { res[i][k] = v; }); }
   return res;
 }
+// Ce fel de exerciții are fiecare materie (se adaugă în promptul AI). Tipurile permise vin și din js/teste/exam.js (profile).
+const LANGS = { "Limba engleză": "engleză", "Limba franceză": "franceză" };
+const SUBJ_RULES = {
+  "Matematica": "MATERIA: matematică. Întrebările verifică definiții, proprietăți, formule și metode; la CALCUL dai probleme cu calcul efectiv (numere, expresii, ecuații, geometrie), cu date complete. Fără eseuri, fără întrebări de opinie.",
+  "Fizica": "MATERIA: fizică. Mixează: definiții și legi (grile, adevărat/fals, completări), mărimi și unități de măsură, interpretarea unor situații fizice, ȘI probleme de calcul cu formulele temei (date, necunoscută, unități; folosește g = 10 N/kg dacă e nevoie și scrie constantele în enunț). Fără eseuri.",
+  "Chimia": "MATERIA: chimie. Mixează: noțiuni, proprietăți, formule chimice, ecuații de reacție (completări), clasificări (asocieri) ȘI probleme de calcul (masă molară, mol, concentrație, stoechiometrie; scrie masele atomice în enunț). Fără eseuri.",
+  "Informatica": "MATERIA: informatică. Întrebări despre noțiuni, sintaxă, tipuri de date, rezultatul unei secvențe scurte de cod (scrisă în enunț), reprezentarea informației; la CALCUL: număr de iterații, valori, conversii simple. Fără eseuri.",
+  "Biologie": "MATERIA: biologie. Noțiuni, structuri și funcții, clasificări, procese (grile, adevărat/fals, completări, asocieri organ–funcție sau termen–definiție). Probleme de calcul DOAR dacă lecția are date numerice (ex. genetică, ecologie). Fără eseuri lungi.",
+  "Științe": "MATERIA: științe (clasa a V-a). Întrebări simple, concrete, pe înțelesul copiilor de 10–11 ani: noțiuni, fenomene, observații, clasificări. Fără calcule complicate.",
+  "Geografie": "MATERIA: geografie. Locuri, relief, clime, ape, populație, economie: noțiuni, localizări, cauze și efecte, asocieri (termen–definiție, țară/regiune–caracteristică). Calcule DOAR simple (densitate, scară, altitudine, spor natural), dacă apar în lecție.",
+  "Istoria": "MATERIA: istorie. Evenimente, date, personalități, cauze și consecințe, cronologie: grile, adevărat/fals, completări cu date/nume/locuri, asocieri eveniment–dată sau personalitate–rol. FĂRĂ probleme de calcul.",
+  "Limba română": "MATERIA: limba și literatura română. Teorie literară (curente, genuri, specii, figuri de stil, trăsături), autori și opere, personaje, teme și motive, ȘI limbă (părți de vorbire, sintaxă, ortografie, vocabular). Fără probleme de calcul. Nu cere interpretarea unui fragment care nu e în textul dat.",
+  "Literatura universală": "MATERIA: literatură universală. Autori, opere, curente, teme, personaje, context cultural; asocieri autor–operă. Fără probleme de calcul.",
+  "Limba engleză": "SUBJECT: English as a foreign language. Write ALL questions and answer options in ENGLISH (level of the class), not in Romanian. Test the language itself: vocabulary (meaning, synonyms, word forms), grammar (choose the correct form, tenses, prepositions, articles), reading comprehension of the given text, gap-fill sentences, matching words with definitions. No calculation problems.",
+  "Limba franceză": "MATIÈRE : français langue étrangère. Écris TOUTES les questions et les variantes en FRANÇAIS (niveau de la classe), pas en roumain. Teste la langue : vocabulaire, grammaire (conjugaison, accords, articles, prépositions), compréhension du texte donné, phrases à compléter, associations mot–définition. Pas de problèmes de calcul.",
+  "Educația pentru societate": "MATERIA: educație pentru societate. Noțiuni civice, drepturi și responsabilități, instituții, procese democratice, studii de caz scurte (grile, adevărat/fals, completări, asocieri). Fără calcule.",
+  "Dezvoltarea personală": "MATERIA: dezvoltare personală. Noțiuni, comportamente, situații de viață, decizii (grile, adevărat/fals, completări). Fără calcule.",
+  "Educația ecologică": "MATERIA: educație ecologică. Noțiuni de ecologie și protecția mediului, cauze și efecte, bune practici (grile, adevărat/fals, completări, asocieri).",
+  "Educația muzicală": "MATERIA: educație muzicală. Noțiuni de teorie muzicală, compozitori, epoci și genuri, instrumente (grile, adevărat/fals, completări, asocieri compozitor–operă). Fără calcule.",
+  "Educația plastică": "MATERIA: educație plastică. Noțiuni (culoare, linie, compoziție, tehnici), artiști și curente (grile, adevărat/fals, completări, asocieri). Fără calcule.",
+  "Educația tehnologică": "MATERIA: educație tehnologică. Materiale, unelte, tehnici, etape ale unui proiect, norme de siguranță (grile, adevărat/fals, completări, asocieri). Fără calcule complicate.",
+  "Educație fizică": "MATERIA: educație fizică. Reguli, tehnică, igiena efortului, noțiuni despre mișcare și sănătate (grile, adevărat/fals, completări). Fără calcule.",
+  "Arta comportamentală": "MATERIA: arta comportamentală. Reguli de conduită, politețe, situații de viață (grile, adevărat/fals, completări). Fără calcule.",
+};
 async function composeBatch(batch, counts, { materie, clasa, level, avoid, chapter }) {
   const body = batch.texts.map(t => `### ${t.tema}\n${t.text}`).join("\n\n"), ex = exampleOf(batch.texts);
   const want = { grile: counts.mcq || 0, adevarat_fals: counts.tf || 0, completari: counts.blank || 0, asocieri: counts.match || 0, raspuns_scurt: counts.open || 0, calcul: counts.num || 0, probleme: counts.prob || 0 };
   if (!Object.values(want).some(Boolean)) return null;
   const lv = ["ușoare, de recunoaștere și reproducere", "de dificultate medie, cu înțelegere", "dificile, cu aplicare și raționament"][level] || "de dificultate medie";
   return call(`Ești profesor de ${materie}, clasa ${clasa}, în Republica Moldova. Creează un TEST${chapter ? ` pentru capitolul „${chapter}”` : ""} din TEXTUL lecțiilor de mai jos, și NUMAI din el. Întrebările sunt ${lv}.
-REGULI GENERALE: nu folosi cunoștințe din afara textului; nu întreba despre figuri, pagini, tabele, activități sau exerciții din manual; fiecare întrebare trebuie să se înțeleagă singură, fără manual (fără „în text”, „mai sus”, „lecția”); limba română corectă gramatical, cu diacritice (ă, â, î, ș, ț); întrebări diferite între ele, din teme diferite, variate (nu două întrebări despre aceeași propoziție). Fiecare element are "sursa" = primele 10-14 cuvinte ale propoziției-sursă din text, copiate EXACT (max 110 de caractere) pe care se sprijină.
+REGULI GENERALE: nu folosi cunoștințe din afara textului; nu întreba despre figuri, pagini, tabele, activități sau exerciții din manual; fiecare întrebare trebuie să se înțeleagă singură, fără manual (fără „în text”, „mai sus”, „lecția”); ${LANGS[materie] ? `scrie în limba ${LANGS[materie]} (nu în română), corect gramatical;` : "limba română corectă gramatical, cu diacritice (ă, â, î, ș, ț);"} întrebări diferite între ele, din teme diferite, variate (nu două întrebări despre aceeași propoziție). Fiecare element are "sursa" = primele 10-14 cuvinte ale propoziției-sursă din text, copiate EXACT (max 110 de caractere) pe care se sprijină.${SUBJ_RULES[materie] ? `\n${SUBJ_RULES[materie]}` : ""}
 GRILE: 4 variante plauzibile, de aceeași natură și lungime apropiată, din aceeași materie; o singură corectă; poziția corectă variază; răspunsul corect NU apare în enunț; fără „toate/niciuna dintre cele de mai sus”.
 ADEVĂRAT/FALS: afirmații complete, de sine stătătoare (fără „acesta/aceasta” la început); aproximativ jumătate false (falsul = o mică schimbare a unui fapt din text: număr, termen, sens).
 COMPLETĂRI: o propoziție cu ___ în locul UNUI singur termen-cheie (1–3 cuvinte), fără alt termen la fel de potrivit.
@@ -133,30 +158,31 @@ ${body}`);
 }
 export async function composeTest(texts, counts, { materie, clasa, level = 1, avoid = [], chapter = "" }) {
   const hay = nz(texts.map(t => t.text).join("\n")), batches = planBatches(texts), parts = splitCounts(counts, batches.map(b => b.w)), used = [...avoid], js = [];
-  const NUMK = ["num", "prob"];
+  const NUMK = ["num", "prob"]; let lastErr = null;
   for (const [i, b] of batches.entries()) {
     const parts2 = [Object.fromEntries(Object.entries(parts[i]).filter(([k]) => !NUMK.includes(k))), Object.fromEntries(Object.entries(parts[i]).filter(([k]) => NUMK.includes(k)))]; // întâi tipurile cu text, apoi calculele
     for (const [pi, cn] of parts2.entries()) {
       if (!Object.values(cn).some(Boolean)) continue;
-      try { const j = await composeBatch(b, cn, { materie, clasa, level, avoid: used, chapter }); if (j) { js.push(j); [...arr(j.grile), ...arr(j.adevarat_fals), ...arr(j.completari), ...arr(j.raspuns_scurt)].forEach(x => used.push(str(x.enunt, 120))); } } catch (e) { if (!js.length && i === batches.length - 1 && pi === 1) throw e; }
+      try { const j = await composeBatch(b, cn, { materie, clasa, level, avoid: used, chapter }); if (j) { js.push(j); [...objs(j.grile), ...objs(j.adevarat_fals), ...objs(j.completari), ...objs(j.raspuns_scurt)].forEach(x => used.push(str(x.enunt, 120))); } } catch (e) { lastErr = e; }
       await pause(i < batches.length - 1 || (pi === 0 && Object.values(parts2[1]).some(Boolean)) ? 9000 : 0);
     }
   }
+  if (!js.length) throw lastErr || new Error("AI nu a returnat nimic. Încearcă din nou.");
   const out = { mcq: [], tf: [], blank: [], match: [], open: [], num: [], prob: [] }, seenQ = new Set(), fresh = q => { const k = nz(q).slice(0, 60); if (seenQ.has(k)) return false; seenQ.add(k); return true; };
   for (const j of js) {
-    for (const m of arr(j.grile)) { const q = str(m.enunt), o = arr(m.variante).map(x => str(x, 160)), k = +m.corect; if (q.length >= 12 && !BAD_Q.test(q) && o.length === 4 && o.every(Boolean) && !o.some(x => BAD_OPT.test(x)) && new Set(o.map(nz)).size === 4 && Number.isInteger(k) && k >= 0 && k <= 3 && !(nz(o[k]).length >= 4 && nz(q).includes(nz(o[k]))) && inText(hay, str(m.sursa, 300)) && fresh(q)) { const sh = shuffle(o.map((x, i) => [x, i === k])); out.mcq.push({ q: { t: "mcq", q, o: sh.map(x => x[0]) }, k: sh.findIndex(x => x[1]), src: str(m.sursa, 300) }); } }
-    for (const m of arr(j.adevarat_fals)) { const q = str(m.enunt); if (q.length >= 12 && !BAD_Q.test(q) && typeof m.adevarat === "boolean" && inText(hay, str(m.sursa, 300)) && fresh(q)) out.tf.push({ q: { t: "tf", q }, k: m.adevarat, src: str(m.sursa, 300) }); }
-    for (const m of arr(j.completari)) { const q = str(m.enunt).replace(/_{2,}/g, "_____"), a = str(m.raspuns, 60); if ((q.match(/_{5}/g) || []).length === 1 && !BAD_Q.test(q) && a && !nz(q).includes(nz(a)) && inText(hay, str(m.sursa, 300)) && fresh(q)) out.blank.push({ q: { t: "blank", q }, k: [a], src: str(m.sursa, 300) }); }
-    for (const m of arr(j.asocieri)) { const P = arr(m.perechi).map(x => [str(x.termen, 90), str(x.corespondent, 140)]).filter(x => x[0] && x[1]); if (P.length === 4 && new Set(P.map(x => nz(x[1]))).size === 4 && new Set(P.map(x => nz(x[0]))).size === 4 && inText(hay, str(m.sursa, 300))) { const R = shuffle(P.map((x, i) => [x[1], i])); out.match.push({ q: { t: "match", q: str(m.enunt) || "Asociază noțiunile cu explicațiile potrivite.", L: P.map(x => x[0]), R: R.map(x => x[0]) }, k: P.map((_, i) => R.findIndex(x => x[1] === i)), src: str(m.sursa, 300) }); } }
-    for (const m of arr(j.raspuns_scurt)) { const q = str(m.enunt), a = str(m.model, 500); if (q.length >= 12 && !BAD_Q.test(q) && a.length >= 10 && inText(hay, str(m.sursa, 300)) && fresh(q)) out.open.push({ q: { t: "open", q }, k: a, src: str(m.sursa, 300) }); }
-    for (const m of arr(j.calcul)) { // rezultatul îl calculăm noi, din expresie; expresia poate folosi doar numere din enunț (sau constante uzuale)
+    for (const m of objs(j.grile)) { const q = str(m.enunt), o = arr(m.variante).map(x => str(x, 160)), k = +m.corect; if (q.length >= 12 && !BAD_Q.test(q) && o.length === 4 && o.every(Boolean) && !o.some(x => BAD_OPT.test(x)) && new Set(o.map(nz)).size === 4 && Number.isInteger(k) && k >= 0 && k <= 3 && !(nz(o[k]).length >= 4 && nz(q).includes(nz(o[k]))) && inText(hay, str(m.sursa, 300)) && fresh(q)) { const sh = shuffle(o.map((x, i) => [x, i === k])); out.mcq.push({ q: { t: "mcq", q, o: sh.map(x => x[0]) }, k: sh.findIndex(x => x[1]), src: str(m.sursa, 300) }); } }
+    for (const m of objs(j.adevarat_fals)) { const q = str(m.enunt); if (q.length >= 12 && !BAD_Q.test(q) && typeof m.adevarat === "boolean" && inText(hay, str(m.sursa, 300)) && fresh(q)) out.tf.push({ q: { t: "tf", q }, k: m.adevarat, src: str(m.sursa, 300) }); }
+    for (const m of objs(j.completari)) { const q = str(m.enunt).replace(/_{2,}/g, "_____"), a = str(m.raspuns, 60); if ((q.match(/_{5}/g) || []).length === 1 && !BAD_Q.test(q) && a && !nz(q).includes(nz(a)) && inText(hay, str(m.sursa, 300)) && fresh(q)) out.blank.push({ q: { t: "blank", q }, k: [a], src: str(m.sursa, 300) }); }
+    for (const m of objs(j.asocieri)) { const P = objs(m.perechi).map(x => [str(x.termen, 90), str(x.corespondent, 140)]).filter(x => x[0] && x[1]); if (P.length === 4 && new Set(P.map(x => nz(x[1]))).size === 4 && new Set(P.map(x => nz(x[0]))).size === 4 && inText(hay, str(m.sursa, 300))) { const R = shuffle(P.map((x, i) => [x[1], i])); out.match.push({ q: { t: "match", q: str(m.enunt) || "Asociază noțiunile cu explicațiile potrivite.", L: P.map(x => x[0]), R: R.map(x => x[0]) }, k: P.map((_, i) => R.findIndex(x => x[1] === i)), src: str(m.sursa, 300) }); } }
+    for (const m of objs(j.raspuns_scurt)) { const q = str(m.enunt), a = str(m.model, 500); if (q.length >= 12 && !BAD_Q.test(q) && a.length >= 10 && inText(hay, str(m.sursa, 300)) && fresh(q)) out.open.push({ q: { t: "open", q }, k: a, src: str(m.sursa, 300) }); }
+    for (const m of objs(j.calcul)) { // rezultatul îl calculăm noi, din expresie; expresia poate folosi doar numere din enunț (sau constante uzuale)
       const q = str(m.enunt, 600), ex = str(m.expresie, 200), u = str(m.unitate, 20); if (q.length < 25 || !ex || BAD_Q.test(q) || /[a-zA-Z]/.test(ex.replace(/sqrt|abs|pi/g, ""))) continue;
       let v; try { v = calc(ex, {}); } catch (e) { continue; } if (!isFinite(v) || Math.abs(v) > 1e9) continue;
       const have = new Set(numsOf(q)); if (!numsOf(ex).every(n => have.has(n) || NUMS_OK.has(n) || derived(n, have))) continue; if (!numsOf(ex).some(n => have.has(n) || derived(n, have))) continue;
       v = +v.toPrecision(8); const whole = Math.abs(v - Math.round(v)) < 1e-9, rs = String(+v.toFixed(2)).replace(".", ",");
       if (fresh(q)) out.num.push({ q: { t: "num", q: q + (u ? ` Exprimă rezultatul în ${u}` : "") + (whole ? "." : (u ? "," : ".") + " rotunjit la 2 zecimale.") }, k: { v }, src: `${str(m.sursa, 300)} · Rezolvare: ${str(m.rezolvare, 400) || ex} = ${rs}${u ? " " + u : ""}`.replace(/^ · /, "") });
     }
-    for (const m of arr(j.probleme)) { const q = str(m.enunt, 700), r = str(m.rezolvare, 900), a = str(m.raspuns, 120); if (q.length >= 25 && (r || a) && !BAD_Q.test(q) && inText(hay, str(m.sursa, 300)) && fresh(q)) out.prob.push({ q: { t: "prob", q }, k: (r + (a ? "\nRăspuns: " + a : "")).trim(), src: str(m.sursa, 300) }); }
+    for (const m of objs(j.probleme)) { const q = str(m.enunt, 700), r = str(m.rezolvare, 900), a = str(m.raspuns, 120); if (q.length >= 25 && (r || a) && !BAD_Q.test(q) && inText(hay, str(m.sursa, 300)) && fresh(q)) out.prob.push({ q: { t: "prob", q }, k: (r + (a ? "\nRăspuns: " + a : "")).trim(), src: str(m.sursa, 300) }); }
   }
   return out;
 }

@@ -44,13 +44,14 @@ function cut(bs, H, out, depth = 0) {
   out.push(leaf(bs, H));
 }
 /* items = page.getTextContent().items → text în ordinea de citire; blocurile sunt separate prin rând liber */
-export function readPage(items) {
+export function readPage(items, rows = false) { // rows = true: rânduri întregi pe toată lățimea (pentru cuprins: pagina rămâne pe același rând cu titlul)
   const bs = items.filter(it => it.str && it.str.trim()).map(it => {
     const h = Math.abs(it.transform[3]) || Math.abs(it.height) || 10, x = it.transform[4], y = it.transform[5];
     return { s: it.str, x0: x, x1: x + (it.width || h * 0.5 * it.str.length), y0: y, y1: y + h, h };
   });
   if (!bs.length) return "";
   const H = med(bs.map(b => b.h)), out = [];
+  if (rows) return leaf(bs, H);
   cut(bs, H, out);
   return out.filter(Boolean).join("\n");
 }
