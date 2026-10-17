@@ -1,7 +1,7 @@
 import { $, esc, toast, whenRole, modal, sheet, can, user, db, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc, deleteField, doc, writeBatch } from "../core/core.js";
 import { aiOn, analyzeLesson, tocAI, pause } from "../teste/ai.js";
 import { readPage } from "../teste/reading.js";
-import { nrm, parseToc, outlineItems, goodToc, finish, findTocPages, isNotLesson, fixTitle } from "../teste/cuprins.js";
+import { nrm, parseToc, outlineItems, goodToc, finish, findTocPages, isNotLesson, fixTitle } from "../teste/cuprins.js?v=22";
 import { SUBJECTS, CLASSES, classesOf, canon } from "../core/config.js";
 import { parse, parseC, statOf, clean } from "../teste/engine.js";
 import { DEMO } from "../teste/demo.js";
@@ -54,9 +54,14 @@ async function pagesText(pdf, a, b, rows = false) { // textul paginilor în ordi
   return clean(out);
 }
 /* ---------- cuprins tipărit: citit din paginile alese de profesor ---------- */
-async function findOffset(pdf, items, t1, t2) { // diferența dintre numărul tipărit și pagina din PDF
-  for (const it of items.slice(0, 4)) { const key = nrm(it.t).slice(0, 26); if (key.length < 8) continue; for (let off = 0; off <= 45; off++) { const pg = it.p + off; if (pg > pdf.numPages) break; if (pg >= t1 && pg <= t2) continue; if (nrm(await pagesText(pdf, pg, pg)).includes(key)) return off; } }
-  return 0;
+async function findOffset(pdf, items, t1, t2) { // diferența dintre numărul tipărit și pagina din PDF: se votează pe mai multe teme (o singură potrivire poate fi falsă — ex. titlul apare și în rezumatul din primele pagini)
+  const ok = items.filter(it => nrm(it.t).length >= 8), S = ok.length > 8 ? Array.from({ length: 8 }, (_, i) => ok[Math.round(i * (ok.length - 1) / 7)]) : ok; if (!S.length) return 0;
+  const cache = {}, txt = async pg => cache[pg] ??= nrm(await pagesText(pdf, pg, pg)); let best = 0, top = 0;
+  for (let off = 0; off <= 45; off++) {
+    let sc = 0; for (const it of S) { const pg = it.p + off; if (pg > pdf.numPages || (pg >= t1 && pg <= t2)) continue; if ((await txt(pg)).includes(nrm(it.t).slice(0, 26))) sc++; }
+    if (sc > top) { top = sc; best = off; } if (top === S.length) break;
+  }
+  return top ? best : 0;
 }
 async function tocFromPages(pdf, t1, t2, offManual, ai) {
   const raw = await pagesText(pdf, t1, t2, true), items = ai ? (await tocAI(raw)).map(x => ({ ...x, t: fixTitle(x.t), ch: x.ch ? fixTitle(x.ch) : x.ch, skip: isNotLesson(x.t) })) : parseToc(raw); if (!items.some(x => !x.skip)) return { T: [], off: 0 };
