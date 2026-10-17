@@ -2,7 +2,7 @@
   var d = document.documentElement, t;
   try { t = localStorage.getItem("tema"); } catch (e) { }
   if (t === "noapte" || (!t && matchMedia("(prefers-color-scheme:dark)").matches)) d.dataset.theme = "noapte";
-  try { var a = JSON.parse(localStorage.getItem("a11y") || "{}"); if (a.fs) d.style.setProperty("--fs", a.fs); ["hc", "dys", "calm"].forEach(function (k) { if (a[k]) d.classList.add("a-" + k); }); } catch (e) { }
+  try { var a = JSON.parse(localStorage.getItem("a11y") || "{}"); if (a.fs) d.style.setProperty("--fs", a.fs); ["hc", "dys", "calm", "big"].forEach(function (k) { if (a[k]) d.classList.add("a-" + k); }); } catch (e) { }
   function cur() { return d.dataset.theme === "noapte" ? "noapte" : "zi"; }
   function set(x) {
     if (x === "noapte") d.dataset.theme = "noapte"; else delete d.dataset.theme;

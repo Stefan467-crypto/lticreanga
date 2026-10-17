@@ -19,8 +19,18 @@ const drawA = () => {
   $("#tabs").innerHTML = ["All", ...CATS].map(t => `<button aria-selected="${t === filt}" data-t="${esc(t)}">${t === "All" ? "Toate" : t}</button>`).join("");
   const l = A.filter(a => filt === "All" || a.c === filt);
   $("#posts").innerHTML = l.slice(0, n).map(a => `<article class="post" tabindex="0" data-id="${a.id}"><div class="cvw"><span class="pill">${esc(a.c)}</span>${a.img ? `<div class="cv" style="background-image:url('${esc(safeUrl(a.img))}')"></div>` : `<div class="cv ph">${esc(a.c[0])}</div>`}</div><div class="pb"><h3>${esc(a.t)}</h3><p>${esc(a.b)}</p><div class="pf"><span class="dt">${fmt(a.d)}</span>${can("anunturi") && mine(a) ? `<button class="btn o s" data-del="anunturi/${a.id}">Șterge</button>` : '<span class="go">Citește <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>'}</div></div></article>`).join("") || '<p class="tag mid">Nu sunt anunțuri.</p>';
-  $("#more").hidden = l.length <= n;
+  $("#more").hidden = l.length <= n; fitPosts();
 };
+/* Fără goluri în grila de anunțuri: numărul de coloane depinde de ecran, deci după desenare alegem ce card se lărgește. */
+function fitPosts() {
+  const g = $("#posts"), ps = [...g.querySelectorAll(".post:not(.sk)")]; ps.forEach(p => { p.classList.remove("wide"); p.style.removeProperty("--sp"); });
+  const cols = getComputedStyle(g).gridTemplateColumns.split(" ").filter(Boolean).length, N = ps.length; if (cols < 2 || !N) return;
+  const r = N % cols; if (r === 0) return;
+  const pick = (p, span) => { p.classList.add("wide"); p.style.setProperty("--sp", span); };
+  if ((N + 1) % cols === 0 && N > 1) pick(ps[0], 2); // cardul principal pe 2 coloane umple rândul exact
+  else pick(ps[N - 1], cols - r + 1); // altfel ultimul card ocupă restul rândului
+}
+let fpT; addEventListener("resize", () => { clearTimeout(fpT); fpT = setTimeout(fitPosts, 120); });
 const loadA = async () => { A = (await all("anunturi")).sort((x, y) => (y.d || "").localeCompare(x.d || "")); drawA(); };
 const open = c => { const a = A.find(x => x.id === c.dataset.id); a && viewer("ann", `${a.img ? `<div class="ah" style="background-image:url('${esc(safeUrl(a.img))}')"></div>` : '<div class="ah ph"></div>'}<div class="ab"><div class="am"><span class="pill">${esc(a.c)}</span><span class="tag">${fmt(a.d)}</span></div><h2>${esc(a.t)}</h2><div class="at">${esc(a.b)}</div></div>`); };
 $("#tabs").onclick = e => { if (e.target.dataset.t) { filt = e.target.dataset.t; n = 6; drawA(); } };

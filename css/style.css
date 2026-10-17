@@ -295,7 +295,7 @@ option{background:var(--card);color:var(--fg);font:inherit}
 .post p{color:var(--mut);line-height:1.6;-webkit-line-clamp:2;font-size:.97rem}
 .post .pf{padding-top:.9rem;margin-top:auto;border-top:1px solid var(--bd);font-size:.82rem}
 .post .pf .dt{color:var(--mut);font-weight:600}.post .go{color:var(--ac);font-weight:700;display:inline-flex;gap:.35rem;align-items:center;transition:gap .25s}.post:hover .go{gap:.7rem}
-@media(min-width:960px){.posts .post:first-child{grid-column:span 2}.posts .post:first-child .cv{aspect-ratio:16/8}.posts .post:first-child h3{font-size:1.8rem}.posts .post:first-child p{-webkit-line-clamp:3}}
+.posts .post.wide{grid-column:span var(--sp,2)}.posts .post.wide .cv{aspect-ratio:16/8}.posts .post.wide h3{font-size:1.8rem}.posts .post.wide p{-webkit-line-clamp:3}
 .post.sk .cvw::after{display:none}
 /* ===== informații (documente) ===== */
 .docs{display:grid;gap:1rem;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr))}
@@ -446,3 +446,29 @@ main,.wrap,.card,.grp,.chh,.posts>*{min-width:0}
 .sct th,.sct td{padding:.65rem .4rem;border-left:1px solid var(--bd);white-space:nowrap}.sct tr+tr>*{border-top:1px solid var(--bd)}
 .sct th{position:sticky;left:0;border-left:0;background:var(--soft);text-align:left;padding-left:1rem;font:700 .78rem var(--sans);letter-spacing:.08em;text-transform:uppercase}
 .sct tr:last-child td{background:color-mix(in srgb,var(--ac) 6%,var(--card))}.sct tr:last-child b{color:var(--ac);font:600 1.1rem var(--serif)}
+
+/* anunțuri: pe telefon (o coloană) nu există lărgire */
+@media(max-width:639px){.posts .post.wide{grid-column:auto}}
+
+/* ===== ajutor la citire (js/core/helper.js) ===== */
+.hl{position:fixed;left:.8rem;bottom:calc(.8rem + env(safe-area-inset-bottom));z-index:19;display:flex;gap:.25rem;padding:.3rem;border-radius:999px;background:var(--card);border:1px solid var(--bd);box-shadow:0 12px 30px -14px rgba(30,8,12,.5)}
+.hl button{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-width:48px;min-height:48px;padding:0 .8rem;border:0;border-radius:999px;background:var(--soft);color:var(--fg);font:700 1.05rem var(--sans);cursor:pointer;transition:background-color .18s,color .18s}
+.hl button small{font-size:.9em;margin-left:-.1em}
+.hl .say{background:var(--ac);color:var(--on);font-size:.86rem;letter-spacing:.04em;padding:0 1rem 0 .85rem}
+.hl .say[aria-pressed=true]{background:#b3261e;color:#fff}
+@media (hover:hover){.hl button:hover{background:color-mix(in srgb,var(--ac) 18%,var(--soft));color:var(--ac)}.hl .say:hover{background:color-mix(in srgb,var(--ac) 78%,#000);color:var(--on)}}
+@media print{.hl{display:none}}
+@media (max-width:420px){.hl .say span{display:none}.hl .say{padding:0}}
+body{padding-bottom:5rem}
+/* butonul spre Baza de lecții (pagina generatorului) */
+.phr{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.8rem 1.4rem}.phr h1{margin:0}
+.btn.lib{gap:.6rem;min-height:52px;font-size:.9rem;box-shadow:0 10px 24px -14px color-mix(in srgb,var(--ac) 90%,transparent)}
+/* ghid scurt „Cum fac…” */
+details.help{margin:0 0 1.2rem}details.help summary{font-size:1.02rem;padding:.2rem 0;min-height:44px;display:flex;align-items:center}
+details.help ol{margin:.5rem 0 .3rem;padding-left:1.4rem;display:grid;gap:.5rem}details.help li::marker{color:var(--ac);font-weight:800}
+/* Butoane mari (meniu → Accesibilitate) */
+html.a-big .btn{min-height:60px;font-size:.95rem;padding-inline:2rem}html.a-big .btn.s{min-height:52px;font-size:.82rem}
+html.a-big .tabs button,html.a-big .dtabs button{min-height:54px;font-size:1rem;padding-inline:1.4em}
+html.a-big .ib{width:54px;height:54px}html.a-big .plus{width:54px;height:54px}
+html.a-big input,html.a-big .dd,html.a-big textarea,html.a-big select{min-height:58px}
+html.a-big .dd-o{min-height:54px;font-size:1.05rem}html.a-big .opt span{padding:1rem 1.1rem}
