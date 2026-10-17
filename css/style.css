@@ -342,3 +342,52 @@ select:disabled{opacity:.55;cursor:default}
 .lc .sck{position:absolute;top:.9rem;left:.9rem;width:26px;height:26px;border-radius:9px;border:2px solid var(--bd);background:var(--card);display:grid;place-items:center}
 .lc.pick{cursor:pointer;position:relative}.lc.pick .pb{padding-left:3.4rem}.lc.pick.on{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 6%,var(--card))}.lc.pick.on .sck{background:var(--ac);border-color:var(--ac)}.lc.pick.on .sck::after{content:"";width:6px;height:11px;margin-bottom:2px;border:solid var(--on);border-width:0 2.5px 2.5px 0;transform:rotate(45deg)}
 @media(max-width:600px){.chh{align-items:stretch}.chh .row{width:100%}.chh .row .btn{flex:1 1 auto}}
+
+/* ===== v17 · responsivitate: Baza de lecții, generator, ferestre (anunțuri) ===== */
+html,body{max-width:100%;overflow-x:clip}
+main,.wrap,.card,.grp,.chh,.posts>*{min-width:0}
+select,input,textarea{max-width:100%}
+
+/* filtrele (Materia / Clasa / Capitolul): coloană pe telefon, 3 coloane de la 640px; câmpurile nu mai depășesc ecranul */
+.tools>.grid{flex:1 1 100%;min-width:0;display:grid;grid-template-columns:minmax(0,1fr);gap:.9rem 1rem}
+.tools>.grid>label{display:block;min-width:0;margin:0;font:700 .72rem var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+.tools>.grid>label>*{margin-top:.4rem;text-transform:none;letter-spacing:0}
+.tools>.grid select{width:100%;min-width:0;max-width:100%;font-weight:600}
+@media(min-width:640px){.tools>.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:640px){.tools:has(>.grid){display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:1rem}.tools:has(>.grid) .plus{margin:0 0 .15rem}}
+/* pe telefon, „Lecție nouă” devine buton plutitor în colț (nu mai ocupă un rând) */
+@media(max-width:639px){#addL{position:fixed;right:max(1rem,env(safe-area-inset-right));bottom:max(1rem,env(safe-area-inset-bottom));z-index:30;width:54px;height:54px;font-size:2rem}}
+
+/* bara „Selectează mai multe” și anteturile de capitol */
+.selbar{max-width:100%}.selbar .btn{flex:0 1 auto}
+@media(max-width:560px){.selbar.act{top:64px}.selbar.act .tag{flex:1 0 100%;margin:0 0 .2rem}.selbar.act .btn{flex:1 1 auto}.grp>.kick.gh .btn{width:100%}}
+.chh h3{overflow-wrap:anywhere}.chh>div{min-width:0;flex:1 1 220px}
+@media(max-width:560px){.chh .row{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;width:100%}.chh .row .btn{width:100%;text-align:center}.chh .row .btn:first-child{grid-column:1/-1}}
+
+/* cardurile de lecții: nu mai primul „mare”, titluri întregi, butoane care se rup frumos */
+.posts .post.lc:first-child{grid-column:auto}.posts .post.lc:first-child h3{font-size:inherit}
+.lc h3{display:block;-webkit-line-clamp:unset;overflow:visible;font-size:clamp(1.08rem,3.4vw,1.3rem);line-height:1.25;overflow-wrap:anywhere}
+.lc .pb{min-width:0}.lc .pf{display:flex;flex-wrap:wrap;gap:.6rem}.lc .pf .row{display:flex;flex-wrap:wrap;gap:.5rem}
+@media(max-width:480px){.lc .pf>.btn,.lc .pf .row,.lc .pf .row .btn{flex:1 1 100%;width:100%;text-align:center}.lc .pf .row{display:grid;grid-template-columns:1fr 1fr}}
+.posts{grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))}
+
+/* generatorul de teste */
+.tst,.card.tst{min-width:0}.tst .opts,.tst .opt,.tst .qt{min-width:0;overflow-wrap:anywhere}
+.tst .mrow span{min-width:0;overflow-wrap:anywhere}
+@media(max-width:480px){.tst .th{flex-direction:column;align-items:stretch}.tst .row .btn{flex:1 1 auto}}
+
+/* ferestre: pe telefon sunt „foi” lipite de marginea de jos, pe tabletă/desktop rămân centrate */
+.modal{max-width:calc(100vw - 1rem)}
+@media(max-width:600px){.modal,.modal.ann{width:100%;max-width:100%;margin:auto 0 0;max-height:94dvh;border-radius:26px 26px 0 0}}
+.modal.ann{overflow-x:hidden;overscroll-behavior:contain}
+/* butonul de închidere rămâne vizibil când derulezi textul */
+.ann .xf{position:sticky;top:12px;display:grid;margin:12px 12px -54px auto;flex:none}
+.ann .ah{aspect-ratio:16/9;max-height:46dvh}.ann .ah.ph{height:70px}
+.ann .ab{padding:1.4rem clamp(1.15rem,5vw,2.2rem) calc(1.6rem + env(safe-area-inset-bottom))}
+.ann h2{overflow-wrap:anywhere;font-size:clamp(1.45rem,6vw,2.2rem)}
+.ann .at{font-size:clamp(.98rem,2.6vw,1.06rem);line-height:1.7}
+@media(max-width:600px){.ann .ah{aspect-ratio:16/10}.ann .ah.ph{height:56px}.ann .ab{padding-top:1.1rem}}
+@media(max-height:480px) and (orientation:landscape){.modal,.modal.ann{max-height:100dvh;border-radius:18px}.ann .ah{max-height:30dvh}}
+/* selectul din ferestre își pierdea săgeata (fundalul era suprascris) */
+.modal select,.modal .mrow select{background-color:var(--soft);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238a7f72' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 1rem center;background-size:16px}
+@media(max-width:560px){.chh .row .btn:last-child:nth-child(odd){grid-column:1/-1}}
