@@ -43,15 +43,32 @@ function cut(bs, H, out, depth = 0) {
   if (gX.length > 1) { for (const g of gX) cut(g, H, out, depth + 1); return; }
   out.push(leaf(bs, H));
 }
+/* Cuprins pe două coloane: caută o „alee” verticală liberă (aproape nimic n-o traversează) în mijlocul paginii.
+   Un titlu centrat sau un rând lung poate traversa aleea (max. ~4% din rânduri). Coloana din dreapta trebuie să conțină text, nu doar numere de pagină,
+   ca să nu tăiem un cuprins pe o singură coloană (titluri în stânga, paginile în dreapta). */
+function twoCols(bs, H) {
+  const n = bs.length; if (n < 12) return null;
+  const mn = Math.min(...bs.map(b => b.x0)), mx = Math.max(...bs.map(b => b.x1)), w = mx - mn; if (w < 20 * H) return null;
+  const step = H / 2, maxCross = Math.max(1, Math.floor(n * 0.04)); let best = null, run = null;
+  const close = () => { if (run && (!best || run.b - run.a > best.b - best.a)) best = run; run = null; };
+  for (let x = mn + 0.4 * w; x <= mn + 0.6 * w; x += step) {
+    let c = 0; for (const b of bs) if (b.x0 < x && b.x1 > x) c++;
+    if (c <= maxCross) { if (!run) run = { a: x, b: x }; run.b = x; } else close();
+  }
+  close();
+  if (!best || best.b - best.a < 1.2 * H) return null;
+  const m = (best.a + best.b) / 2, L = bs.filter(b => b.x0 < m), R = bs.filter(b => b.x0 >= m), tx = a => a.filter(b => /\p{L}{3}/u.test(b.s)).length, tl = tx(L), tr = tx(R);
+  return tl >= 0.25 * (tl + tr) && tr >= 0.25 * (tl + tr) ? [L, R] : null;
+}
 /* items = page.getTextContent().items → text în ordinea de citire; blocurile sunt separate prin rând liber */
-export function readPage(items, rows = false) { // rows = true: rânduri întregi pe toată lățimea (pentru cuprins: pagina rămâne pe același rând cu titlul)
+export function readPage(items, rows = false) { // rows = true: rânduri întregi (pentru cuprins: pagina rămâne pe același rând cu titlul); cuprinsul pe două coloane se citește coloană cu coloană
   const bs = items.filter(it => it.str && it.str.trim()).map(it => {
     const h = Math.abs(it.transform[3]) || Math.abs(it.height) || 10, x = it.transform[4], y = it.transform[5];
     return { s: it.str, x0: x, x1: x + (it.width || h * 0.5 * it.str.length), y0: y, y1: y + h, h };
   });
   if (!bs.length) return "";
   const H = med(bs.map(b => b.h)), out = [];
-  if (rows) return leaf(bs, H);
+  if (rows) { const c = twoCols(bs, H); return c ? c.map(g => leaf(g, H)).filter(Boolean).join("\n") : leaf(bs, H); }
   cut(bs, H, out);
   return out.filter(Boolean).join("\n");
 }

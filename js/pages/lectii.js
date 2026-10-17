@@ -1,6 +1,6 @@
 import { $, esc, toast, whenRole, modal, sheet, can, user, db, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc, deleteField, doc, writeBatch } from "../core/core.js";
 import { aiOn, analyzeLesson, tocAI, pause } from "../teste/ai.js";
-import { readPage } from "../teste/reading.js";
+import { readPage } from "../teste/reading.js?v=22";
 import { nrm, parseToc, outlineItems, goodToc, finish, findTocPages, isNotLesson, fixTitle } from "../teste/cuprins.js?v=22";
 import { SUBJECTS, CLASSES, classesOf, canon } from "../core/config.js";
 import { parse, parseC, statOf, clean } from "../teste/engine.js";
