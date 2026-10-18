@@ -1,6 +1,6 @@
 // Creează PDF-uri direct în browser (fără biblioteci): paginile se desenează pe canvas și se împachetează într-un PDF.
-import { correct, nota, scale, rangeOf } from "./engine.js";
-const W = 1654, H = 2339, M = 130, FS = 33, FF = 'Georgia, "Times New Roman", serif', OL = "ABCD", SCHOOL = "Liceul Teoretic „Ion Creangă” Cahul";
+import { correct, nota, scale, rangeOf } from "./engine.js?v=24";
+const W = 1654, H = 2339, M = 130, FS = 33, FF = 'Georgia, "Times New Roman", serif', OL = "ABCDEFGH", SCHOOL = "Liceul Teoretic „Ion Creangă” Cahul";
 class Doc {
   constructor(foot, fs = FS) { this.foot = foot; this.fs = fs; this.pages = []; this.np(); }
   np() { const c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, W, H); this.c = c; this.x = x; this.y = M; this.pages.push(c); }
@@ -12,6 +12,13 @@ class Doc {
   text(t, { sz = this.fs, w = 400, it = false, ind = 0, lh = 1.4, align = "left", color = "#111", after = 0, keep = 0 } = {}) { const L = this.wrap(t, sz, w, W - 2 * M - ind, it); this.need(L.length * sz * lh + keep); this.draw(L, M + ind, sz, w, it, color, lh, align); this.y += after; }
   rule(th = 3, color = "#111") { this.x.fillStyle = color; this.x.fillRect(M, this.y, W - 2 * M, th); this.y += th; }
   line(x, w, th = 2) { this.x.fillStyle = "#444"; this.x.fillRect(x, this.y, w, th); }
+  srcBox(arr) { // sursele/textul unui grup de itemi: etichetă + fragment, cu o linie în stânga
+    for (const s of arr) {
+      const ind = 92, sz = this.fs - 3; this.need(Math.min(this.wrap(s.t, sz, 400, W - 2 * M - ind - 10, true).length * sz * 1.35 + 90, 1100)); const c0 = this.c, y0 = this.y;
+      this.text(s.l, { sz: this.fs - 2, w: 700, ind, color: "#8a1c2b", after: 4, keep: 120 }); this.text(s.t, { sz, it: true, ind, lh: 1.35, color: "#222", after: 22 });
+      if (this.c === c0) { this.x.fillStyle = "#bbb"; this.x.fillRect(M + 72, y0, 4, this.y - y0 - 14); }
+    }
+  }
   scaleTable(T) { // Scara de notare: coloana din stânga = titlurile (Punctaj, Nota), apoi câte o coloană pentru fiecare notă de la 1 la 10
     const sc = scale(T), tw = W - 2 * M, c0 = 230, cw = (tw - c0) / 10, rh = 76; this.need(rh * 2 + 120);
     this.text("Scara de notare", { sz: 36, w: 700, color: "#8a1c2b", after: 14, keep: rh * 2 + 60 });
@@ -30,8 +37,9 @@ class Doc {
   finish() { const n = this.pages.length; this.pages.forEach((c, i) => { const x = c.getContext("2d"); x.font = `400 24px ${FF}`; x.fillStyle = "#666"; const t = `${this.foot} · pagina ${i + 1} din ${n}`; x.fillText(t, (W - x.measureText(t).width) / 2, H - 70); }); return this.pages; }
 }
 const hint = q => q.t === "mcq" ? "Încercuiește litera răspunsului corect." : q.t === "tf" ? "Încercuiește A (adevărat) sau F (fals)." : q.t === "blank" ? "Completează spațiul liber." : q.t === "match" ? "Scrie litera potrivită lângă fiecare noțiune." : q.t === "num" || q.t === "prob" ? "Scrie rezolvarea și răspunsul." : "Răspunde în scris.";
-const rowsOf = (q, p) => q.t === "prob" ? (p >= 8 ? 9 : p >= 5 ? 7 : 5) : q.t === "num" ? (p >= 8 ? 8 : p >= 5 ? 6 : 4) : q.t === "open" ? (p >= 10 ? 9 : p >= 5 ? 5 : 3) : 0;
-function question(d, i, q, p) {
+const rowsOf = (q, p) => q.rows ? q.rows : q.t === "prob" ? (p >= 8 ? 9 : p >= 5 ? 7 : 5) : q.t === "num" ? (p >= 8 ? 8 : p >= 5 ? 6 : 4) : q.t === "open" ? (p >= 20 ? 24 : p >= 10 ? 12 : p >= 5 ? 6 : 3) : 0; // eseurile (20–35 p.) primesc aproape o pagină
+function question(d, i, q, p, showSrc) {
+  if (showSrc && q.s) d.srcBox(q.s);
   const ind = 72, mw = W - 2 * M - ind, text = q.q;
   const tl = d.wrap(text, d.fs, 400, mw - 150), lh = 1.4;
   let h = tl.length * d.fs * lh + 36 + 20;
@@ -60,7 +68,7 @@ export function testPages(meta, V, { titlu, minute, big }) {
     d.text("Numele și prenumele: ______________________________   Clasa: ________   Data: ____________", { sz: 29, after: 6 });
     d.text(`${minute ? "Timp de lucru: " + minute + " minute. " : ""}Punctaj total: ${pts(v)} ${pts(v) === 1 ? "punct" : "puncte"}. Nota: ______`, { sz: 29, after: 14 });
     d.rule(); d.gap(34);
-    v.q.forEach((q, i) => { if (v.parts && (i === 0 || v.sc[i] !== v.sc[i - 1])) { const pt = v.parts[v.sc[i]], sp = v.q.reduce((a, _, j) => a + (v.sc[j] === v.sc[i] ? (v.p?.[j] || 1) : 0), 0); d.need(170); d.gap(10); d.text(`${pt.t} (${sp} ${sp === 1 ? "punct" : "puncte"})`, { sz: 38, w: 700, color: "#8a1c2b", after: 4, keep: 120 }); d.text(pt.d, { sz: 27, it: true, color: "#555", after: 22 }); } question(d, i, q, v.p?.[i] || 1); });
+    v.q.forEach((q, i) => { if (v.parts && (i === 0 || v.sc[i] !== v.sc[i - 1])) { const pt = v.parts[v.sc[i]], sp = v.q.reduce((a, _, j) => a + (v.sc[j] === v.sc[i] ? (v.p?.[j] || 1) : 0), 0); d.need(170); d.gap(10); d.text(`${pt.t} (${sp} ${sp === 1 ? "punct" : "puncte"})`, { sz: 38, w: 700, color: "#8a1c2b", after: 4, keep: 120 }); d.text(pt.d, { sz: 27, it: true, color: "#555", after: 22 }); } question(d, i, q, v.p?.[i] || 1, !(i && q.g && v.q[i - 1].g === q.g)); });
     d.gap(14); d.scaleTable(pts(v));
   });
   return d.finish();

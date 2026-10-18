@@ -2,7 +2,8 @@
 // Tot ce vine de la AI este verificat: propoziția-sursă trebuie să existe în textul lecției, șabloanele trebuie să se calculeze.
 import { AI_URL } from "../core/config.js";
 import { auth } from "../core/firebase.js";
-import { nz, checkTemplate, calc, parseC, exercisesOf } from "./engine.js";
+import { nz, checkTemplate, calc, parseC, exercisesOf } from "./engine.js?v=24";
+import { pickSources, planOf, styleOf, assignSources, validateGroup, localTask } from "./surse.js?v=24";
 export const aiOn = () => !!AI_URL;
 export const pause = ms => new Promise(r => setTimeout(r, ms));
 let lastModel = ""; // modelul care a răspuns ultima dată (Gemini nu cere pauzele lungi necesare pentru limita pe minut Groq)
@@ -120,7 +121,7 @@ const SUBJ_RULES = {
   "Biologie": "MATERIA: biologie. Noțiuni, structuri și funcții, clasificări, procese (grile, adevărat/fals, completări, asocieri organ–funcție sau termen–definiție). Probleme de calcul DOAR dacă lecția are date numerice (ex. genetică, ecologie). Fără eseuri lungi.",
   "Științe": "MATERIA: științe (clasa a V-a). Întrebări simple, concrete, pe înțelesul copiilor de 10–11 ani: noțiuni, fenomene, observații, clasificări. Fără calcule complicate.",
   "Geografie": "MATERIA: geografie. Locuri, relief, clime, ape, populație, economie: noțiuni, localizări, cauze și efecte, asocieri (termen–definiție, țară/regiune–caracteristică). Calcule DOAR simple (densitate, scară, altitudine, spor natural), dacă apar în lecție.",
-  "Istoria": "MATERIA: istorie. Evenimente, date, personalități, cauze și consecințe, cronologie: grile, adevărat/fals, completări cu date/nume/locuri, asocieri eveniment–dată sau personalitate–rol. FĂRĂ probleme de calcul.",
+  "Istoria": "MATERIA: istorie (curriculum Republica Moldova: Istoria românilor și universală). Evenimente, date, personalități, cauze și consecințe, cronologie, relații de cauzalitate, timp–spațiu–personalitate: grile, adevărat/fals, completări cu date/nume/locuri, asocieri eveniment–dată sau personalitate–rol. Datele (ani, secole) se copiază exact din text. FĂRĂ probleme de calcul.",
   "Limba română": "MATERIA: limba și literatura română. Teorie literară (curente, genuri, specii, figuri de stil, trăsături), autori și opere, personaje, teme și motive, ȘI limbă (părți de vorbire, sintaxă, ortografie, vocabular). Fără probleme de calcul. Nu cere interpretarea unui fragment care nu e în textul dat.",
   "Literatura universală": "MATERIA: literatură universală. Autori, opere, curente, teme, personaje, context cultural; asocieri autor–operă. Fără probleme de calcul.",
   "Limba engleză": "SUBJECT: English as a foreign language. Write ALL questions and answer options in ENGLISH (level of the class), not in Romanian. Test the language itself: vocabulary (meaning, synonyms, word forms), grammar (choose the correct form, tenses, prepositions, articles), reading comprehension of the given text, gap-fill sentences, matching words with definitions. No calculation problems.",
@@ -185,6 +186,44 @@ export async function composeTest(texts, counts, { materie, clasa, level = 1, av
       if (fresh(q)) out.num.push({ q: { t: "num", q: q + (u ? ` Exprimă rezultatul în ${u}` : "") + (whole ? "." : (u ? "," : ".") + " rotunjit la 2 zecimale.") }, k: { v }, src: `${str(m.sursa, 300)} · Rezolvare: ${str(m.rezolvare, 400) || ex} = ${rs}${u ? " " + u : ""}`.replace(/^ · /, "") });
     }
     for (const m of objs(j.probleme)) { const q = str(m.enunt, 700), r = str(m.rezolvare, 900), a = str(m.raspuns, 120); if (q.length >= 25 && (r || a) && !BAD_Q.test(q) && inText(hay, str(m.sursa, 300)) && fresh(q)) out.prob.push({ q: { t: "prob", q }, k: (r + (a ? "\nRăspuns: " + a : "")).trim(), src: str(m.sursa, 300) }); }
+  }
+  return out;
+}
+
+
+/* ---- itemi pe sursă (Istorie, Geografie, Română, limbi străine…) ----
+   Sursele sunt fragmente din lecție alese de SITE (js/teste/surse.js): AI nu poate inventa citate. AI primește sursele și scrie doar sarcinile și baremul.
+   Rezultatul: Map(indexul slotului → { q: {t:"open", q, s:[{l,t}], g}, k: barem, src }). Ce nu trece de verificare → sarcină de rezervă (localTask). */
+const LEVEL = ["ușoare, de recunoaștere (identificare, localizare)", "de dificultate medie (explicare, comparare)", "dificile (argumentare, apreciere, sinteză)"];
+export async function composeSourceBlocks(texts, slots, { materie, clasa, level = 1, chapter = "" }) {
+  const st = styleOf(materie), plans = planOf(slots), pool = pickSources(texts.map(t => ({ tema: t.tema, text: t.text })), plans.reduce((a, p) => a + p.ns, 0) || 1, { long: st.kind === "text" });
+  const by = assignSources(pool, plans.map(p => ({ g: p.g, n: p.ns })), st), out = new Map(), ok = new Map();
+  const usable = plans.filter(p => (by.get(p.g) || []).length || p.ns === 0);
+  if (usable.length && aiOn()) {
+    const lang = LANGS[materie] ? `Scrie TOT (sarcini și bareme) în limba ${LANGS[materie]}, nu în română.` : "Scrie în limba română corectă, cu diacritice (ă, â, î, ș, ț).";
+    const ctx = texts.map(t => `### ${t.tema}\n${t.text}`).join("\n\n").slice(0, 4500);
+    const blocks = usable.map(p => `GRUP ${p.g}\n${p.ns === 0 ? "(fără surse: sarcina se rezolvă din cunoștințele lecției; scrie tu cerințele numerotate)" : by.get(p.g).map(s => `[${s.l}] ${s.t}`).join("\n")}\nITEMI:\n${p.items.map((x, n) => `${n + 1}. puncte=${x.p}${x.h ? "; tip: " + x.h : ""}`).join("\n")}`).join("\n\n");
+    try {
+      const j = await call(`Ești profesor de ${materie}, clasa ${clasa}, în Republica Moldova, și compui itemii unui test în stilul testelor ANCE${chapter ? ` (capitolul „${chapter}”)` : ""}. Itemii sunt ${LEVEL[level] || LEVEL[1]}.
+Mai jos sunt GRUPURI. Fiecare grup are SURSELE lui (${st.ask}; fragmente din lecție, deja alese — NU le modifica și NU adăuga alte citate) și o listă de ITEMI cu punctaj.
+Pentru fiecare item scrie:
+- "enunt": sarcina pentru elev. Începe cu verbul-sarcină (Identifică, Determină, Explică, Compară, Demonstrează, Dedu, Apreciază, Formulează, Exprimă-ți opinia, Argumentează…); când grupul are mai multe surse, spune pe care o folosește („Utilizează sursa B”). Se rezolvă DOAR din sursele grupului și din cunoștințele lecției. Fără cuvintele „manual”, „lecție”, „pagina”, „figura”. Respectă „tip” (ce fel de sarcină se cere), iar la itemii cu mai multe puncte cere argumentare.
+- "barem": răspunsul-model + repartizarea punctajului pe criterii, cu „(… p.)” la fiecare criteriu; suma criteriilor = punctajul itemului. La opinie/eseu enumeră criteriile și punctajul lor.
+Nu inventa fapte, nume, date sau citate care nu sunt în surse sau în lecție. ${lang}${SUBJ_RULES[materie] ? "\n" + SUBJ_RULES[materie] : ""}
+Returnează DOAR JSON: {"grupuri":[{"g":"","itemi":[{"enunt":"","barem":""}]}]}
+${blocks}
+
+LECȚIA (doar pentru cunoștințele necesare):
+${ctx}`);
+      for (const g of objs(j.grupuri)) { const pl = usable.find(p => p.g === String(g.g)); if (pl) { const v = validateGroup(pl, by.get(pl.g), g); if (v) ok.set(pl.g, v); } }
+    } catch (e) { /* rămân sarcinile locale */ }
+  }
+  for (const p of plans) {
+    const ss = by.get(p.g) || []; if (!ss.length && p.ns !== 0) continue; const v = ok.get(p.g);
+    p.items.forEach((it, n) => {
+      const sl = slots.find(s => s.i === it.i) || {}, loc = v ? null : localTask(st, it.i, ss[0]?.tema || texts[0]?.tema, sl);
+      out.set(it.i, { q: { t: "open", q: v ? v[n].q : loc[0], s: ss.map(({ l, t }) => ({ l, t })), g: p.g, ...(v ? {} : { loc: 1 }) }, k: v ? v[n].k : loc[1], src: ss[0] ? ss[0].t.slice(0, 110) : "Cerințe formulate pe baza lecției", ai: !!v });
+    });
   }
   return out;
 }

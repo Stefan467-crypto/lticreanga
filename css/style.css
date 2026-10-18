@@ -462,3 +462,12 @@ html.a-big .tabs button,html.a-big .dtabs button{min-height:54px;font-size:1rem;
 html.a-big .ib{width:54px;height:54px}html.a-big .plus{width:54px;height:54px}
 html.a-big input,html.a-big .dd,html.a-big textarea,html.a-big select{min-height:58px}
 html.a-big .dd-o{min-height:54px;font-size:1.05rem}html.a-big .opt span{padding:1rem 1.1rem}
+
+/* itemi pe sursă (teste): sursele grupului, barem la autoevaluare, note pentru profesor */
+.srcbox{display:grid;gap:.6rem;margin:.2rem 0 .9rem}.srcbox blockquote{margin:0;padding:.7rem 1rem;border-left:4px solid var(--ac);background:var(--soft);border-radius:0 14px 14px 0}.srcbox blockquote b{display:block;font:700 .78rem var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--ac);margin-bottom:.2rem}.srcbox blockquote p{margin:0;font:italic 400 1.02rem/1.6 var(--serif)}
+.qs.self .fb{background:var(--soft);border-radius:14px;padding:.7rem 1rem}.barem{margin:.5rem 0 0;white-space:pre-wrap;font:inherit;color:var(--fg)}
+.tag.warn{color:var(--ac);font-weight:600}
+/* constructorul de teste */
+.bld{display:grid;gap:.9rem}.blist{display:grid;gap:.7rem}.bi{border:1px solid var(--line,#e3dccf);border-radius:16px;padding:.8rem 1rem;background:var(--card,#fff)}.bi .qt{margin:.5rem 0 .2rem}.bprev,.bi .bprev{font-size:.9rem;color:var(--mut,#6b6558)}
+.bsec{display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-top:.6rem;padding:.55rem .9rem;border-radius:14px;background:var(--soft,#f4efe6)}.bsec b{display:block;color:var(--ac,#8a1c2b)}.badd{align-self:start}
+.bpal{display:grid;gap:.5rem;margin-top:.7rem}.bt{display:flex;flex-direction:column;align-items:flex-start;gap:.15rem;text-align:left;padding:.7rem 1rem;border:1px solid var(--line,#e3dccf);border-radius:14px;background:var(--card,#fff);font:inherit;cursor:pointer}.bt:hover{border-color:var(--ac,#8a1c2b)}.bt span{font-size:.85rem;color:var(--mut,#6b6558)}.bsug{display:flex;gap:.5rem;align-items:center;font-size:.92rem;padding:.3rem .2rem}.bsum{margin:.2rem 0}

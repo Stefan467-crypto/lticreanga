@@ -1,10 +1,10 @@
 import { $, esc, toast, whenRole, modal, sheet, can, user, db, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc, deleteField, doc, writeBatch } from "../core/core.js";
-import { aiOn, analyzeLesson, tocAI, pause } from "../teste/ai.js";
-import { readPage } from "../teste/reading.js?v=22";
-import { nrm, parseToc, outlineItems, goodToc, finish, findTocPages, isNotLesson, fixTitle } from "../teste/cuprins.js?v=22";
+import { aiOn, analyzeLesson, tocAI, pause } from "../teste/ai.js?v=24";
+import { readPage } from "../teste/reading.js?v=24";
+import { nrm, parseToc, outlineItems, goodToc, finish, findTocPages, isNotLesson, fixTitle, trimToTheme, titleKey, findOffsetWith, verifyShifts } from "../teste/cuprins.js?v=24";
 import { SUBJECTS, CLASSES, classesOf, canon } from "../core/config.js";
-import { parse, parseC, statOf, clean } from "../teste/engine.js";
-import { DEMO } from "../teste/demo.js";
+import { parse, parseC, statOf, clean } from "../teste/engine.js?v=24";
+import { DEMO } from "../teste/demo.js?v=24";
 let L = [], RES = [], fm = "", fc = "", fk = "", selMode = false, SEL = new Set(), VIS = [];
 const idx = s => { const i = SUBJECTS.indexOf(s); return i < 0 ? 99 : i; }, ci = c => CLASSES.indexOf(c), NC = (a, b) => String(a).localeCompare(String(b), "ro", { numeric: true });
 const opt = (a, v, all) => (all ? `<option value="">${all}</option>` : "") + a.map(x => `<option value="${esc(x)}"${x === v ? " selected" : ""}>${esc(x)}</option>`).join("");
@@ -54,15 +54,7 @@ async function pagesText(pdf, a, b, rows = false) { // textul paginilor în ordi
   return clean(out);
 }
 /* ---------- cuprins tipărit: citit din paginile alese de profesor ---------- */
-async function findOffset(pdf, items, t1, t2) { // diferența dintre numărul tipărit și pagina din PDF: se votează pe mai multe teme (o singură potrivire poate fi falsă — ex. titlul apare și în rezumatul din primele pagini)
-  const ok = items.filter(it => nrm(it.t).length >= 8), S = ok.length > 8 ? Array.from({ length: 8 }, (_, i) => ok[Math.round(i * (ok.length - 1) / 7)]) : ok; if (!S.length) return 0;
-  const cache = {}, txt = async pg => cache[pg] ??= nrm(await pagesText(pdf, pg, pg)); let best = 0, top = 0;
-  for (let off = 0; off <= 45; off++) {
-    let sc = 0; for (const it of S) { const pg = it.p + off; if (pg > pdf.numPages || (pg >= t1 && pg <= t2)) continue; if ((await txt(pg)).includes(nrm(it.t).slice(0, 26))) sc++; }
-    if (sc > top) { top = sc; best = off; } if (top === S.length) break;
-  }
-  return top ? best : 0;
-}
+const findOffset = (pdf, items, t1, t2) => { const cache = {}; return findOffsetWith(async pg => cache[pg] ??= nrm(await pagesText(pdf, pg, pg)), pdf.numPages, items, t1, t2); }; // decalajul tipărit → PDF (poate fi negativ)
 async function tocFromPages(pdf, t1, t2, offManual, ai) {
   const raw = await pagesText(pdf, t1, t2, true), items = ai ? (await tocAI(raw)).map(x => ({ ...x, t: fixTitle(x.t), ch: x.ch ? fixTitle(x.ch) : x.ch, skip: isNotLesson(x.t) })) : parseToc(raw); if (!items.some(x => !x.skip)) return { T: [], off: 0 };
   const off = offManual ?? await findOffset(pdf, items.filter(x => !x.skip), t1, t2), last = t1 > pdf.numPages / 2 ? t1 - 1 : pdf.numPages; // cuprins la sfârșit → ultima pagină de lecție e cea de dinainte
@@ -72,6 +64,10 @@ async function toc(pdf) { const it = await outlineItems(pdf); return goodToc(it)
 const findToc = pdf => findTocPages(pdf, (p, a, b) => pagesText(p, a, b, true));
 
 async function renderPage(pdf, n, canvas) { const pg = await pdf.getPage(n), v0 = pg.getViewport({ scale: 1 }), sc = Math.min(2, 760 / v0.width), v = pg.getViewport({ scale: sc }); canvas.width = v.width; canvas.height = v.height; await pg.render({ canvasContext: canvas.getContext("2d"), viewport: v }).promise; }
+async function verifyToc(pdf, T, trust = false) { // titlul fiecărei teme trebuie să apară la pagina indicată; dacă e la ±3 pagini, corectăm; altfel avertizăm
+  const cache = {}, w = await verifyShifts(T, async pg => cache[pg] ??= nrm(await pagesText(pdf, pg, pg)), pdf.numPages, { trust });
+  return w.map(x => x.kind === "moved" ? `„${x.t}”: pagina corectată la ${x.p}` : `„${x.t}”: titlul nu apare la pagina ${x.p} — verifică`);
+}
 const tocText = T => { let cur = null, o = []; for (const x of T) { if ((x.ch || "") !== cur) { cur = x.ch || ""; if (cur) o.push("# " + cur); } o.push(`${x.t} | ${x.p}-${x.e}`); } return o.join("\n"); };
 /* ---------- adăugare ---------- */
 const start = () => { const d = sheet("Adaugă lecții", '<button class="btn" id="o1" type="button" style="width:100%;margin-bottom:.7rem">📘 Din manual (site sau PDF)</button><button class="btn o" id="o2" type="button" style="width:100%">✍️ Lipesc textul temei</button>'); d.querySelector("#o1").onclick = () => { d.close(); importMan(); }; d.querySelector("#o2").onclick = () => { d.close(); form(); }; };
@@ -82,15 +78,16 @@ function importMan() {
 <span class="sub">Cuprinsul</span><div class="grid"><label>De la pagina<input name="t1" type="number" min="1" placeholder="ex. 3"></label><label>Până la pagina<input name="t2" type="number" min="1" placeholder="ex. 4"></label></div><input name="off" type="hidden"><input name="k" type="hidden">
 <div class="row" style="margin:0 0 1.1rem"><button type="button" class="btn s" id="toc">Citește manualul</button><button type="button" class="btn o s" id="pv">Vezi paginile manualului</button></div>
 <div id="pvbox" hidden><div class="row pvc"><button type="button" class="btn o s" id="pp" aria-label="Pagina anterioară">‹</button><input id="pn" type="number" min="1" value="1" aria-label="Numărul paginii"><button type="button" class="btn o s" id="pnx" aria-label="Pagina următoare">›</button><button type="button" class="btn s" id="st1">Cuprinsul începe aici</button><button type="button" class="btn s" id="st2">Se termină aici</button></div><canvas id="pvc"></canvas></div>
-<label>Capitolele și temele<textarea name="t" rows="9" placeholder="# Capitolul 1. Optica&#10;Optica geometrică | 45-52&#10;Lentilele | 53-60"></textarea></label>`, async f => {
+<p class="tag warn" id="tocw" hidden></p><label>Capitolele și temele<textarea name="t" rows="9" placeholder="# Capitolul 1. Optica&#10;Optica geometrică | 45-52&#10;Lentilele | 53-60"></textarea></label>`, async f => {
     const E = f.elements, src = E.f.files[0] || (RES.find(r => r.id === E.man.value) || {}).url; if (!src) throw new Error("Alege un manual sau un fișier PDF");
     let ch = E.k.value.trim(); const rows = [];
     for (const raw of E.t.value.split("\n")) { const l = raw.trim(); if (!l) continue; if (l.startsWith("#")) { ch = l.replace(/^#+\s*/, "").trim(); continue; } const m = /^(.+?)\s*[|;]\s*(\d+)(?:\s*[-–]\s*(\d+))?\s*$/.exec(l); if (m && !rows.some(r => r.ch === ch && nrm(r.t) === nrm(m[1]) && r.a === +m[2])) rows.push({ ch, t: m[1].trim(), a: +m[2], b: +(m[3] || m[2]) }); }
     if (!rows.length) throw new Error("Scrie cel puțin o temă: Titlu | 45-52");
-    const pdf = await openPdf(src), btn = f.querySelector(".btn"), man = E.f.files[0]?.name || (RES.find(r => r.id === E.man.value) || {}).titlu || ""; let ok = 0, skip = [];
-    for (const [i, r] of rows.entries()) { btn.textContent = `Se importă ${i + 1}/${rows.length}…`; const text = await pagesText(pdf, r.a, r.b);
+    const pdf = await openPdf(src), btn = f.querySelector(".btn"), man = E.f.files[0]?.name || (RES.find(r => r.id === E.man.value) || {}).titlu || ""; let ok = 0, skip = [], nofind = [];
+    for (const [i, r] of rows.entries()) { btn.textContent = `Se importă ${i + 1}/${rows.length}…`; const nx = rows[i + 1], raw = await pagesText(pdf, r.a, r.b + (nx && nx.a === r.b + 1 ? 1 : 0)), tr = trimToTheme(raw, r.t, nx?.t), text = tr.text.length >= 200 ? tr.text : raw;
+      if (!tr.found) nofind.push(r.t);
       if (text.length < 200) { skip.push(r.t); continue; } await saveLesson({ materie: E.m.value, clasa: E.c.value, capitol: r.ch, pag: r.a, tema: r.t, text: text.slice(0, 60000), sursa: `${man}, pag. ${r.a}${r.b > r.a ? "–" + r.b : ""}`, uid: user.uid, ts: Date.now() }); ok++; }
-    toast(`Importate ${ok} lecții${skip.length ? ` · fără text în PDF (scanat?): ${skip.join(", ")}` : ""}`); load();
+    toast(`Importate ${ok} lecții${skip.length ? ` · fără text în PDF (scanat?): ${skip.join(", ")}` : ""}${nofind.length ? ` · titlul nu a fost găsit în text (verifică lecția): ${nofind.slice(0, 5).join(", ")}${nofind.length > 5 ? "…" : ""}` : ""}`); load();
   }, "Importă temele");
   const f = d.querySelector("form"), E = f.elements;
   const fill = () => { const l = RES.filter(r => r.materie === E.m.value && (r.clasa === E.c.value || r.clasa === "Toate" || !r.clasa)); E.man.innerHTML = l.length ? l.map(r => `<option value="${r.id}">${esc(r.titlu)}${r.clasa && r.clasa !== "Toate" ? " (cl. " + esc(r.clasa) + ")" : ""}</option>`).join("") : '<option value="">— niciun manual încărcat —</option>'; $("#mn").innerHTML = l.length ? "" : 'Nu e niciun manual la această materie. Încarcă-l în <a href="resurse?m=' + encodeURIComponent(E.m.value) + '">Resurse</a> (tip „Manual digital”, fișier PDF) și revino.'; };
@@ -106,7 +103,7 @@ function importMan() {
         if (!T.length) { const f = await findToc(pdf); if (f) { E.t1.value = f[0]; E.t2.value = f[1]; const r = await tocFromPages(pdf, f[0], f[1], E.off.value === "" ? null : +E.off.value, ai); T = r.T; E.off.value = r.off; how = `din paginile ${f[0]}–${f[1]} (le-am găsit eu)`; } }
       }
       if (!T.length) { toast("Nu am găsit cuprinsul. Apasă „Vezi paginile manualului”, găsește pagina cuprinsului și apasă „Cuprinsul începe aici”."); $("#pvbox").hidden ? $("#pv").click() : 0; }
-      else { E.t.value = tocText(T); const nc = new Set(T.map(x => x.ch).filter(Boolean)).size; toast(`Am găsit ${nc ? nc + " capitole și " : ""}${T.length} teme ${how}. Șterge rândurile care nu te interesează.`); }
+      else { const w = await verifyToc(pdf, T, /semnele de carte/.test(how)), bx = $("#tocw"); bx.hidden = !w.length; bx.innerHTML = w.length ? "Verificare în PDF:<br>" + w.slice(0, 12).map(esc).join("<br>") + (w.length > 12 ? `<br>… și încă ${w.length - 12}` : "") : ""; E.t.value = tocText(T); const nc = new Set(T.map(x => x.ch).filter(Boolean)).size; toast(`Am găsit ${nc ? nc + " capitole și " : ""}${T.length} teme ${how}. Șterge rândurile care nu te interesează.`); }
     } catch (e) { toast(e.message); }
     b.disabled = false; b.textContent = lab;
   };

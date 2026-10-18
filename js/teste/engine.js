@@ -1,4 +1,5 @@
 // Motor de teste: creează întrebări DOAR din textul lecțiilor (fără API, doar JavaScript).
+import { pickSources, styleOf, localTask, assignSources } from "./surse.js?v=24";
 export const nz = s => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[„”“"'’()\[\];:!?]/g, " ").replace(/\s+/g, " ").trim();
 const rng = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const STOP = new Set("care este sunt prin pentru dintre precum această acest aceste acestea aceasta când unde cum dacă atunci având fiind poate pot trebuie între asupra după înainte numai foarte fiecare altfel însă deci astfel unui unei unor către mult multe fără sale său lor lui spre peste ceea cele celor același aceeași acelor altele alte alți doar decât cât câte câți nici sau încât deoarece aproximativ semnificativ".split(" "));
@@ -140,9 +141,9 @@ export function exercisesOf(text, max = 8) {
 
 /* ---- analiză lecție ---- */
 export function parse(text, tema = "") {
-  const P = { tema, sents: [], defs: [], forms: [], probs: [], sols: [] };
+  const P = { tema, sents: [], defs: [], forms: [], probs: [], sols: [], raw: [] };
   const addDef = (term, def, src) => { term = tidy(term); def = def.replace(/[.!?]+$/, "").trim(); if (okTerm(term) && okDef(def)) P.defs.push({ term, def, src }); };
-  text = fixFont(normDia(text));
+  text = fixFont(normDia(text)); P.raw.push({ tema, text }); // textul curat al lecției: din el se aleg sursele pentru itemii pe sursă
   for (const raw of extractProblems(text.replace(/\r/g, "").split("\n"), P)) {
     let l = raw.trim().replace(/^[•▪●◦*]\s*|^[-–—]\s+(?=\p{L})/u, ""); if (!l || l.startsWith("# ") || /^(?:\d{1,2}[.)]|[a-hA-H]\))\s+\p{Lu}/u.test(l) && !/^@problema/i.test(l) && /[?:]\s*$|\b(?:calcula|determina|completa|notează|construi|analiza|formula)\p{L}*/iu.test(l)) continue;
     if (/^@problema/i.test(l)) { P.probs.push(l.replace(/^@problema\s*/i, "")); continue; }
@@ -161,7 +162,7 @@ export function parse(text, tema = "") {
   return P;
 }
 const X0 = () => ({ mcq: [], tf: [], blank: [], open: [] });
-export function merge(list) { return list.reduce((a, p) => ({ sents: a.sents.concat(p.sents), defs: a.defs.concat(p.defs), forms: a.forms.concat(p.forms), probs: a.probs.concat(p.probs), sols: a.sols.concat(p.sols), x: Object.fromEntries(Object.keys(X0()).map(k => [k, a.x[k].concat(p.x?.[k] || [])])) }), { sents: [], defs: [], forms: [], probs: [], sols: [], x: X0() }); }
+export function merge(list) { return list.reduce((a, p) => ({ sents: a.sents.concat(p.sents), defs: a.defs.concat(p.defs), forms: a.forms.concat(p.forms), probs: a.probs.concat(p.probs), sols: a.sols.concat(p.sols), raw: a.raw.concat(p.raw || []), m: a.m || p.m || "", x: Object.fromEntries(Object.keys(X0()).map(k => [k, a.x[k].concat(p.x?.[k] || [])])) }), { sents: [], defs: [], forms: [], probs: [], sols: [], raw: [], m: "", x: X0() }); }
 /* material pregătit de AI (opțional): definiții, întrebări, probleme și șabloane — adăugat peste ce găsește motorul local */
 export function withAi(P, ai) {
   if (!ai || !ai.v) return P; const seen = new Set(P.defs.map(d => nz(d.term)));
@@ -199,7 +200,7 @@ export function generate(P, { n = 10, types = ["mcq", "tf", "blank", "num"], lev
   const blankOut = (s, t) => t.kind === "w" ? s.replace(new RegExp(`(?<![\\p{L}\\d])${esc(t.a)}(?![\\p{L}\\d])`, "giu"), "_____") : s.split(t.a).join("_____");
   const clip = (s, n = 130) => s.length > n ? s.slice(0, n).replace(/\s+\S*$/, "") + "…" : s;
   const optsQ = (ans, wrong) => { const o = shuf([ans, ...wrong]); return { o, k: o.indexOf(ans) }; };
-  const G = { mcq: [], tf: [], blank: [], num: [], match: [], open: [], prob: [] };
+  const G = { mcq: [], tf: [], blank: [], num: [], match: [], open: [], prob: [], src: [] };
   P.defs.forEach((d, i) => { if (P.defs.length >= 4) { G.mcq.push({ sig: `m|d${i}|r`, f: () => { const sn = new Set([nz(d.term)]), w = shuf(P.defs.filter(x => x.term !== d.term)).map(x => cap(x.term)).filter(x => !sn.has(nz(x)) && sn.add(nz(x))).slice(0, 3); if (w.length < 3) return null; const { o, k } = optsQ(cap(d.term), w); return { t: "mcq", q: `Care noțiune corespunde descrierii: „${clip(d.def, 170)}”?`, o, k, src: d.src }; } }); G.mcq.push({ sig: `m|d${i}|f`, f: () => { const sn = new Set([nz(clip(cap(d.def), 110))]), w = shuf(P.defs.filter(x => x.term !== d.term)).map(x => clip(cap(x.def), 110)).filter(x => !sn.has(nz(x)) && sn.add(nz(x))).slice(0, 3); if (w.length < 3) return null; const { o, k } = optsQ(clip(cap(d.def), 110), w); return { t: "mcq", q: `Ce reprezintă „${d.term}”?`, o, k, src: d.src }; } }); } });
   P.sents.forEach((s, i) => {
     const t = target(s); if (!t) return;
@@ -238,13 +239,16 @@ export function generate(P, { n = 10, types = ["mcq", "tf", "blank", "num"], lev
     const shown = m[2].trim().replace(/[a-zA-Z_]\w*/g, w => w in vars ? String(vars[w]).replace(".", ",") : w), un = (m[3] || "").trim(), rs = String(+v.toFixed(2)).replace(".", ",");
     const whole = Math.abs(v - Math.round(v)) < 1e-9; return { t: "num", q: `${txt}${un && !/fără/i.test(un) ? ` (răspuns în ${un}${whole ? "" : ", rotunjit la 2 zecimale"})` : whole ? "" : " (rotunjește la 2 zecimale)"}`, k: { v }, src: `${m[4] ? "Formula: " + m[4].trim() + ". " : ""}Calcul: ${shown} = ${rs}${un && !/fără/i.test(un) ? " " + un : ""}` };
   } }));
+  /* itemi pe sursă (fără AI): sursa e un fragment real din lecție; sarcina e generală, baremul spune ce se verifică */
+  const ST = styleOf(P.m), SR = P.raw && P.raw.length ? pickSources(P.raw, 6, { long: ST.kind === "text" }) : [];
+  SR.forEach((s, i) => G.src.push({ sig: `s|${i}`, f: () => { const [q, k] = localTask(ST, i, s.tema, { p: 3 }); return { t: "open", q, s: [{ l: ST.kind === "text" ? ST.lab : ST.lab + " A", t: s.text }], g: "L" + i, k, src: s.text.slice(0, 110) }; } }));
   const X = P.x || {};
   (X.mcq || []).forEach((m, i) => G.mcq.push({ sig: `x|m${i}`, f: () => { const { o, k } = optsQ(m.o[m.k], m.o.filter((_, j) => j !== m.k)); return { t: "mcq", q: m.q, o, k, src: m.src }; } }));
   (X.tf || []).forEach((m, i) => G.tf.push({ sig: `x|t${i}`, f: () => ({ t: "tf", q: m.q, k: !!m.k, src: m.src }) }));
   (X.blank || []).forEach((m, i) => G.blank.push({ sig: `x|b${i}`, f: () => ({ t: "blank", q: "Completează: " + m.q.replace(/_{2,}/g, "_____"), k: [m.a, m.a.replace(/\s/g, "")], src: m.src }) }));
   (X.open || []).forEach((m, i) => G.open.push({ sig: `x|o${i}`, f: () => ({ t: "open", q: m.q, k: m.a, src: m.src }) }));
   const en = types.filter(t => G[t] && G[t].length); if (!en.length) return { q: [], k: [], src: [], sigs: [], used: [], total: 0 };
-  const W0 = { mcq: [.45, .35, .25], tf: [.25, .2, .15], blank: [.2, .25, .3], num: [.3, .4, .5], match: [.1, .1, .1], open: [.2, .2, .2], prob: [.2, .2, .2] }, sum = en.reduce((a, t) => a + W0[t][level], 0);
+  const W0 = { mcq: [.45, .35, .25], tf: [.25, .2, .15], blank: [.2, .25, .3], num: [.3, .4, .5], match: [.1, .1, .1], open: [.2, .2, .2], prob: [.2, .2, .2], src: [.15, .15, .15] }, sum = en.reduce((a, t) => a + W0[t][level], 0);
   const quota = {}; let left = n; en.forEach(t => { quota[t] = Math.min(G[t].length * (t === "num" ? 3 : 1), Math.round(n * W0[t][level] / sum)); left -= quota[t]; });
   const items = [], used = new Set(), sigs = [];
   const skOf = sig => { let m; if ((m = /^m\|d(\d+)\|/.exec(sig))) return "s" + P.defs[+m[1]].src; if ((m = /^[mbt]\|f(\d+)$/.exec(sig)) || (m = /^o\|f(\d+)$/.exec(sig))) return "f" + m[1]; if ((m = /^o\|d(\d+)$/.exec(sig))) return "s" + P.defs[+m[1]].src; if ((m = /^[mbt]\|c?(\d+)$/.exec(sig))) return "s" + P.sents[+m[1]]; if ((m = /^r\|(\d+)$/.exec(sig))) return "r" + m[1]; if ((m = /^x\|([mtbo])(\d+)$/.exec(sig))) return "s" + X[{ m: "mcq", t: "tf", b: "blank", o: "open" }[m[1]]][+m[2]].src; return ""; };
@@ -258,14 +262,22 @@ export function generate(P, { n = 10, types = ["mcq", "tf", "blank", "num"], lev
 }
 
 /* ---- test „ca la examen”: structura vine din modelul ales (vezi exam.js), conținutul — din lecție ---- */
-const OPENK = new Set(["open", "prob", "compose"]);
+const OPENK = new Set(["open", "prob", "compose", "crit"]); // „src” se exersează și pe ecran (autoevaluare după barem)
 export function generateExam(P, tpl, { level = 1, hist = new Set(), noOpen = false, tema = "" } = {}) {
   const left = { ...capacity(P) }, out = { q: [], k: [], src: [], p: [], sc: [], sigs: [], total: 0, parts: tpl.parts.map(x => ({ t: x.t, d: x.d })) }, avoid = new Set(), h = new Set(hist);
   const FALL = ["mcq", "blank", "tf", "match", "open"];
+  const ST = styleOf(P.m), need = tpl.parts.flatMap(x => x.it).filter(s => s.k.includes("src")), KEY = new Map(need.map((s, i) => [s, s.g || "own" + i])), gn = new Map(); let ctr = 0;
+  for (const s of need) gn.set(KEY.get(s), Math.max(gn.get(KEY.get(s)) ?? 0, s.ns ?? 1));
+  const nsTot = [...gn.values()].reduce((a, x) => a + x, 0), pool = nsTot && P.raw?.length ? pickSources(P.raw, nsTot, { long: ST.kind === "text" }) : [], gs = assignSources(pool, [...gn].map(([g, n]) => ({ g, n })), ST); // surse pentru toate grupurile, dintr-o dată
   tpl.parts.forEach((part, pi) => part.it.forEach(slot => {
     let g = null;
     for (const kind of [...slot.k, ...FALL]) {
       if (noOpen && OPENK.has(kind)) continue;
+      if (kind === "crit") { g = { q: { t: "open", q: "Pentru corectitudinea tuturor secvențelor scrise se acordă puncte după criteriile din barem (ortografie, punctuație, exprimare).", g: "crit" }, k: slot.h || "Ortografie, punctuație, exprimare — se punctează după criteriile din barem.", src: "Criterii de redactare" }; break; }
+      if (kind === "src") {
+        const key = KEY.get(slot), ss = gs.get(key); if (!ss || (!ss.length && gn.get(key) !== 0)) continue;
+        const [q, k] = localTask(ST, ctr++, ss[0]?.tema || P.tema, slot); g = { q: { t: "open", q, s: ss.map(({ l, t }) => ({ l, t })), g: key }, k, src: ss[0] ? ss[0].t.slice(0, 110) : "Cerințe" }; break;
+      }
       if (kind === "compose") { g = { q: { t: "open", q: `Redactează un text de 12–15 rânduri pe tema „${tema || P.tema || "lecția studiată"}”. Folosește noțiunile învățate și argumentează-ți ideile.` }, k: "Criterii: conținutul și corectitudinea informațiilor — 40%; structura și coerența textului — 30%; limba (ortografie, punctuație, vocabular) — 30%.", src: "Subiect de redactare" }; break; }
       if (!(left[kind] > 0)) continue;
       const r = generate(P, { n: 1, types: [kind], level, hist: h, avoid }); if (!r.total) { left[kind] = 0; continue; }
@@ -292,7 +304,7 @@ export const rangeOf = r => r.a > r.b ? "—" : r.a === r.b ? String(r.a) : `${r
 /* Punctaj pe exercițiu în testele „libere”: exercițiile mai grele valorează mai mult (grilă/adevărat-fals 1 p., completare/asociere 2 p., calcul/răspuns scurt 3 p., problemă 4 p.). */
 export const WEIGHT = { tf: 1, mcq: 1, blank: 2, match: 2, open: 3, num: 3, prob: 4 };
 export const wt = t => WEIGHT[t] || 1;
-export const correct = (q, k) => q.t === "open" || q.t === "prob" ? String(k) : q.t === "mcq" ? q.o[k] : q.t === "tf" ? (k ? "Adevărat" : "Fals") : q.t === "blank" ? k[0] : q.t === "match" ? q.L.map((_, i) => `${i + 1}→${"ABCD"[k[i]]}`).join("  ") : String(+k.v.toFixed(2)).replace(".", ",");
+export const correct = (q, k) => q.t === "open" || q.t === "prob" ? String(k) : q.t === "mcq" ? q.o[k] : q.t === "tf" ? (k ? "Adevărat" : "Fals") : q.t === "blank" ? k.join(" / ") : q.t === "match" ? q.L.map((_, i) => `${i + 1}→${"ABCDEFGH"[k[i]]}`).join("  ") : String(+k.v.toFixed(2)).replace(".", ",");
 
 /* ---- optimizări: analiză memorată și „câte întrebări permite lecția” ---- */
 const memo = new Map(), hash = t => { let h = 5381; for (let i = 0; i < t.length; i++) h = (h * 33 ^ t.charCodeAt(i)) >>> 0; return t.length + ":" + h; };
@@ -300,7 +312,7 @@ export function parseC(text) { const k = hash(text); let P = memo.get(k); if (!P
 const capMemo = new Map();
 export function capacity(P, key = "") {
   if (key && capMemo.has(key)) return capMemo.get(key);
-  const c = {}; for (const t of ["mcq", "tf", "blank", "num", "match", "open", "prob"]) { const g = generate(P, { n: 120, types: [t], level: 1, seed: 1 }); c[t] = t === "num" ? (P.probs.length ? 99 : 0) : g.total; }
+  const c = {}; for (const t of ["mcq", "tf", "blank", "num", "match", "open", "prob", "src"]) { const g = generate(P, { n: 120, types: [t], level: 1, seed: 1 }); c[t] = t === "num" ? (P.probs.length ? 99 : 0) : g.total; }
   if (key) capMemo.set(key, c); return c;
 }
 export const statOf = P => ({ s: P.sents.length, d: P.defs.length, f: P.forms.length, p: Math.max(P.probs.length, P.sols.length) });
