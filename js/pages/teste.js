@@ -1,12 +1,13 @@
-import { $, esc, toast, whenRole, modal, can, db, collection, getDocs, getDoc, doc } from "../core/core.js";
+import { $, esc, toast, whenRole, modal, can, saveBlob, db, collection, getDocs, getDoc, doc } from "../core/core.js";
 import { SUBJECTS, CLASSES, canon } from "../core/config.js";
-import { KIND, OPEN_KINDS, profile, models, total, screenOk } from "../teste/exam.js?v=24";
-import { merge, parseC, withAi, generate, generateExam, grade, nota, correct, capacity, scale, rangeOf, wt } from "../teste/engine.js?v=24";
-import { DEMO } from "../teste/demo.js?v=24";
-import { aiOn, composeTest, composeSourceBlocks } from "../teste/ai.js?v=24";
-import { bankFor } from "../teste/formule.js?v=24";
+import { KIND, OPEN_KINDS, profile, models, total, screenOk } from "../teste/exam.js?v=27";
+import { merge, parseC, withAi, generate, generateExam, grade, nota, correct, capacity, scale, rangeOf, wt } from "../teste/engine.js?v=27";
+import { DEMO } from "../teste/demo.js?v=27";
+import { aiOn, composeTest, composeSourceBlocks, composeSlides } from "../teste/ai.js?v=27";
+import { THEMES, buildPptx, slug as pslug } from "../teste/pptx.js?v=27";
+import { bankFor } from "../teste/formule.js?v=27";
 import { auth } from "../core/firebase.js";
-import { createBuilder } from "./constructor.js?v=24";
+import { createBuilder } from "./constructor.js?v=27";
 const TY = { mcq: "Grilă", tf: "Adevărat / Fals", blank: "Completare", num: "Problemă", match: "Asociere", open: "Răspuns scurt", prob: "Problemă cu rezolvare", src: "Item pe sursă" }, LV = ["Ușor", "Mediu", "Greu"], OL = "ABCDEFGH";
 const idx = s => { const i = SUBJECTS.indexOf(s); return i < 0 ? 99 : i; }, slug = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), NC = (a, b) => String(a).localeCompare(String(b), "ro", { numeric: true });
 const chap = l => l.capitol || "Fără capitol";
@@ -18,13 +19,13 @@ const titleOf = ls => {
   if (ls.length <= 2) return names.join(" + ");
   return hasCh ? `${noEx(S.kp)} (${ls.length} teme)` : names.slice(0, 2).join(" + ") + ` + încă ${ls.length - 2}`;
 };
-let L = [], S = { mat: "", cl: "", kp: "", ids: new Set(), n: 10, lv: 1, ty: new Set(["mcq", "tf", "blank", "num"]), mode: "train", nv: 2, md: "free", build: false }, V = [], vi = 0, P = null, meta = null, busy = false, TXT = {}, capTok = 0;
+let L = [], S = { mat: "", cl: "", kp: "", ids: new Set(), n: 10, lv: 1, ty: new Set(["mcq", "tf", "blank", "num"]), mode: "train", nv: 2, md: "free", build: false, gen: "test", pn: 10, pt: "bordo", pq: true, pa: true, au: "" }, V = [], vi = 0, PX = null, P = null, meta = null, busy = false, TXT = {}, capTok = 0;
 /* ---------- date: textul lecției se aduce doar când e nevoie ---------- */
 const docOf = async l => l.text !== undefined ? { text: l.text, ai: l.ai } : (TXT[l.id] ??= (await getDoc(doc(db, "lectii_text", l.id))).data() || { text: "" });
 const texts = ls => Promise.all(ls.map(async l => ({ ...l, ...(await docOf(l)) })));
 const PL = l => { const P = withAi(parseC(l.text), l.ai); return { ...P, m: l.materie, probs: P.probs.concat(bankFor(l.materie, l.text, l.tema)) }; }; // + probleme-șablon pe materie (js/teste/formule.js), potrivite după conținutul lecției
 /* ---------- setări memorate pe dispozitiv ---------- */
-const saveS = () => { try { localStorage.tcfg2 = JSON.stringify({ mat: S.mat, cl: S.cl, kp: S.kp, ids: [...S.ids], n: S.n, lv: S.lv, ty: [...S.ty], mode: S.mode, nv: S.nv, md: S.md, build: S.build }); } catch (e) { } };
+const saveS = () => { try { localStorage.tcfg2 = JSON.stringify({ mat: S.mat, cl: S.cl, kp: S.kp, ids: [...S.ids], n: S.n, lv: S.lv, ty: [...S.ty], mode: S.mode, nv: S.nv, md: S.md, build: S.build, gen: S.gen, pn: S.pn, pt: S.pt, pq: S.pq, pa: S.pa, au: S.au }); } catch (e) { } };
 const loadS = () => { try { const c = JSON.parse(localStorage.tcfg2 || "null"); if (c) Object.assign(S, c, { ids: new Set(c.ids || []), ty: new Set((c.ty || []).filter(x => x !== "prob").length ? c.ty.filter(x => x !== "prob") : ["mcq", "tf", "blank", "num"]) }); } catch (e) { } };
 const hist = () => { try { return JSON.parse(localStorage.tsig || "{}"); } catch (e) { return {}; } };
 const chip = (a, on, t, cls = "") => `<button type="button" ${a} aria-selected="${on}" class="${cls}">${t}</button>`, sel = () => L.filter(l => S.ids.has(l.id));
@@ -40,6 +41,14 @@ const fmt = n => String(+n.toFixed(1)).replace(".", ",");
 /* ---------- configurare: materia → clasa → capitolul → temele ---------- */
 const aiReady = () => aiOn() && !!auth.currentUser;
 const sel1 = (f, arr, cur, lab = x => x) => `<select data-f="${f}">${arr.map(x => `<option value="${esc(x)}"${x === cur ? " selected" : ""}>${esc(lab(x))}</option>`).join("")}</select>`;
+const howHtml = px => px ? `<summary>Cum fac o prezentare? (3 pași)</summary><ol><li><b>Alege lecția:</b> materia, clasa, capitolul și temele (poți alege mai multe).</li><li><b>Setează prezentarea:</b> numărul de diapozitive, culorile și ce include.</li><li><b>Apasă „Generează prezentarea”.</b> AI face planul din textul lecției; îl poți corecta, apoi descarci fișierul .pptx (se deschide în PowerPoint, Google Slides sau LibreOffice).</li></ol>` : `<summary>Cum fac un test? (3 pași)</summary><ol><li><b>Alege lecția:</b> materia, clasa, capitolul și tema. Dacă lecția lipsește, deschide <a href="lectii">Baza de lecții</a>.</li><li><b>Setează testul:</b> alege „Antrenament” (răspunzi pe ecran) sau „Test pe hârtie” (îl tipărești). Apoi alege dificultatea.</li><li><b>Apasă „Generează testul”.</b> La test pe hârtie poți descărca PDF-ul testului și baremul.</li></ol>`;
+const pptxSettings = () => `<h3 class="h2n"><span class="num">2</span> Setează prezentarea</h3>
+<p class="kick">Număr de diapozitive</p><div class="tabs">${[6, 8, 10, 12, 15].map(n => chip(`data-pn="${n}"`, n === S.pn, n)).join("")}</div>
+<p class="kick">Culori</p><div class="tabs seg">${Object.entries(THEMES).map(([k, t]) => chip(`data-pt="${k}"`, k === S.pt, esc(t.nume))).join("")}</div>
+<p class="kick">Include</p><div class="tabs">${chip('data-pq="1"', S.pq, "Întrebări de verificare")}${chip('data-pa="1"', S.pa, "Notițe pentru profesor")}</div>
+<label class="f">Autor (apare pe primul diapozitiv, opțional)<input data-f="au" value="${esc(S.au)}" maxlength="60" placeholder="ex. Prof. Maria Popescu"></label>
+<p class="capi">Prezentarea se creează numai din textul lecțiilor alese. Verifică conținutul înainte de a o folosi la oră.${aiReady() ? "" : " Autentifică-te ca să folosești AI; altfel se face o variantă simplă, direct din textul lecției."}</p>
+<button class="btn" id="gop" type="button" style="width:100%;margin-top:1.1rem">✦ Generează prezentarea${aiReady() ? " cu AI" : ""}</button>`;
 const drawCfg = () => {
   if (!L.length) { $("#cfg").innerHTML = '<p class="tag mid">Nu sunt lecții încă. Un profesor le adaugă în <a href="lectii">Baza de lecții</a>.</p>'; return; }
   const mats = SUBJECTS.filter(s => L.some(l => l.materie === s)); if (!mats.includes(S.mat)) S.mat = mats[0];
@@ -48,9 +57,9 @@ const drawCfg = () => {
   const ts = inC.filter(l => chap(l) === S.kp).sort((a, b) => (a.pag ?? 1e9) - (b.pag ?? 1e9) || NC(a.tema, b.tema));
   S.ids = new Set([...S.ids].filter(id => ts.some(t => t.id === id))); if (!S.ids.size && ts[0]) S.ids.add(ts[0].id);
   const th = can("resurse"), pf = profile(S.mat), ms = models(S.mat, S.cl).filter(m => m.id === "eval" || paper() || screenOk(m)); if (S.md !== "free" && !ms.some(m => m.id === S.md)) S.md = "free";
-  const bld = th && S.build, md = mdl(), types = pf.all.filter(k => k !== "prob" && (!OPEN_KINDS.has(k) || paper() || k === "src")), all = ts.every(t => S.ids.has(t.id));
+  if (!th) S.gen = "test"; const px = th && S.gen === "pptx", bld = th && !px && S.build, md = mdl(), types = pf.all.filter(k => k !== "prob" && (!OPEN_KINDS.has(k) || paper() || k === "src")), all = ts.every(t => S.ids.has(t.id));
   const mdOpts = [{ id: "free", nume: "Liber" }, ...ms.map(m => ({ id: m.id, nume: m.nume }))];
-  let H = (th ? `<div class="tabs seg" style="margin-bottom:1.1rem">${chip('data-bmode="0"', !bld, "Generator automat")}${chip('data-bmode="1"', bld, "Constructor (manual)")}</div>` : "") + `<h3><span class="num">1</span> Alege lecția</h3>
+  let H = (th ? `<div class="tabs seg gm">${chip('data-gen="test"', !px, "Teste")}${chip('data-gen="pptx"', px, "Prezentări")}</div>` : "") + (th && !px ? `<div class="tabs seg" style="margin-bottom:1.1rem">${chip('data-bmode="0"', !bld, "Generator automat")}${chip('data-bmode="1"', bld, "Constructor (manual)")}</div>` : "") + `<h3><span class="num">1</span> Alege lecția</h3>
 <div class="fgrid"><label class="f">Materia${sel1("m", mats, S.mat)}</label><label class="f">Clasa${sel1("c", cls, S.cl, c => "Clasa " + c)}</label></div>
 <label class="f">Capitolul${sel1("k", chs, S.kp)}</label>
 <div class="thead"><span class="kick">Temele din capitol</span><button type="button" class="btn o s" data-all="1">${all ? "Doar prima" : "Tot capitolul"}</button></div>
@@ -61,6 +70,8 @@ ${md ? `<p class="capi">${md.parts.length} părți · ${md.parts.reduce((a, p) =
 <p class="kick">Dificultate</p><div class="tabs seg">${LV.map((l, i) => chip(`data-lv="${i}"`, i === S.lv, l)).join("")}</div>
 ${paper() ? `<p class="kick">Variante diferite</p><div class="tabs">${[1, 2, 4, 6].map(n => chip(`data-nv="${n}"`, n === S.nv, n)).join("")}</div>` : ""}<p class="capi" id="cap"></p>
 <button class="btn" id="go" type="button" style="width:100%;margin-top:1.1rem">✦ Generează testul${aiReady() ? " cu AI" : ""}</button>`;
+  if ($("#hist")) $("#hist").hidden = px; if ($("#how")) $("#how").innerHTML = howHtml(px);
+  if (px) { $("#cfg").innerHTML = H.slice(0, H.indexOf('<h3 class="h2n">')) + pptxSettings(); return; }
   if (bld) H = H.slice(0, H.indexOf('<h3 class="h2n">')) + `<h3 class="h2n"><span class="num">2</span> Construiește testul</h3><p class="capi">Alegi tipul exercițiului, îl scrii (sau pornești de la o propunere din lecție), iar la sfârșit descarci testul și baremul în PDF.</p><div id="bld"></div>`;
   $("#cfg").innerHTML = H; if (bld) { BLD.render($("#bld")); return; }
   updCap();
@@ -81,12 +92,15 @@ async function updCap() { // ce tipuri permite lecția aleasă (cele indisponibi
 }
 $("#cfg").onchange = e => {
   const t = e.target, f = t.dataset.f; if (!f) return; const v = t.value;
+  if (f === "au") { S.au = v.trim().slice(0, 60); saveS(); return; }
   if (f === "m") { S.mat = v; S.cl = S.kp = ""; S.ids = new Set(); S.md = "free"; S.ty = new Set(profile(v).def); } if (f === "c") { S.cl = v; S.kp = ""; S.ids = new Set(); } if (f === "k") { S.kp = v; S.ids = new Set(); } if (f === "md") S.md = v;
   saveS(); drawCfg();
 };
 $("#cfg").onclick = e => {
   const b = e.target.closest("button"); if (!b) return; const d = b.dataset;
-  if (b.id === "go") return make();
+  if (b.id === "go") return make(); if (b.id === "gop") return makePptx();
+  if (d.gen) { S.gen = d.gen; PX = null; $("#out").innerHTML = ""; saveS(); return drawCfg(); }
+  if (d.pn) S.pn = +d.pn; if (d.pt) S.pt = d.pt; if (d.pq) S.pq = !S.pq; if (d.pa) S.pa = !S.pa;
   if (d.m) { S.mat = d.m; S.cl = S.kp = ""; S.ids = new Set(); S.md = "free"; S.ty = new Set(profile(d.m).def); } if (d.c) { S.cl = d.c; S.kp = ""; S.ids = new Set(); } if (d.k) { S.kp = d.k; S.ids = new Set(); }
   if (d.t) { S.ids.has(d.t) ? S.ids.size > 1 && S.ids.delete(d.t) : S.ids.add(d.t); }
   if (d.all) { const ts = L.filter(l => l.materie === S.mat && l.clasa === S.cl && chap(l) === S.kp); S.ids = ts.every(t => S.ids.has(t.id)) ? new Set([ts[0].id]) : new Set(ts.map(t => t.id)); }
@@ -200,6 +214,7 @@ function editQ(i) {
 }
 $("#out").onclick = e => {
   const b = e.target.closest("button"); if (!b) return; const d = b.dataset;
+  if (PX && S.gen === "pptx") return pxClick(b);
   if (b.id === "chk") return check(); if (b.id === "again") return make();
   if (b.id === "pdf" || b.id === "key") return askPdf(b.id); if (d.v) { vi = +d.v; return drawTest(); }
   if (b.id === "redo") { const v = V[0], w = v.wrong; V = [{ q: w.map(i => v.q[i]), k: w.map(i => v.k[i]), src: w.map(i => v.src[i]), total: w.length }]; vi = 0; meta = { ...meta, tema: meta.tema.replace(/ \(greșeli\)$/, "") + " (greșeli)" }; drawTest(); return $("#out").scrollIntoView({ behavior: "smooth" }); }
@@ -218,6 +233,54 @@ const askPdf = id => modal(id === "key" ? "Descarcă baremul (PDF)" : "Descarcă
   const pages = id === "key" ? P2.keyPages(meta, V, { titlu }) : P2.testPages(meta, V, { titlu, minute: +(E.m?.value) || 0, big: E.s?.value === "1" });
   P2.save(await P2.toPdf(pages), `${id === "key" ? "barem" : "test"}-${slug(meta.tema)}.pdf`); toast("PDF descărcat");
 }, "Descarcă PDF");
+/* ---------- prezentări (.pptx): doar profesori și administratori ---------- */
+const TIPS = { obiective: "Obiective", continut: "Conținut", definitii: "Noțiuni", rezumat: "Rezumat", intrebari: "Întrebări" };
+function localSlides(ls, { n, quiz }) { // varianta fără AI: noțiunile și propozițiile principale din textul lecției
+  const Ps = ls.map(PL), body = [];
+  Ps.forEach((P, i) => {
+    const nm = noEx(ls[i].tema), sents = P.sents.filter(x => x.length >= 30 && x.length <= 200);
+    if (P.defs.length) body.push({ tip: "definitii", titlu: `${nm}: noțiuni`, puncte: [], termeni: P.defs.slice(0, 4).map(d => ({ termen: d.term, definitie: d.def.slice(0, 240) })), notite: "" });
+    for (let k = 0; k < Math.min(sents.length, 8); k += 4) body.push({ tip: "continut", titlu: k ? `${nm} (continuare)` : nm, puncte: sents.slice(k, k + 4), termeni: [], notite: "" });
+  });
+  const defs = Ps.flatMap(P => P.defs), q = quiz && defs.length ? { tip: "intrebari", titlu: "Întrebări de verificare", puncte: defs.slice(0, 5).map(d => `Ce înseamnă „${d.term}”?`), termeni: [], notite: "" } : null;
+  const first = { tip: "obiective", titlu: "Ce vom învăța", puncte: ls.map(l => noEx(l.tema)).slice(0, 5), termeni: [], notite: "" };
+  return { titlu: "", slides: [first, ...body.slice(0, Math.max(0, n - 2 - (q ? 1 : 0))), ...(q ? [q] : [])], ai: false };
+}
+async function makePptx() {
+  if (busy) return; if (!can("resurse")) return toast("Prezentările pot fi create doar de profesori și administratori"); const l0 = sel(); if (!l0.length) return toast("Alege o temă");
+  busy = true; const go = $("#gop"); go.disabled = true; go.textContent = aiReady() ? "AI creează prezentarea…" : "Se pregătește…";
+  try {
+    const ls = await texts(l0), tema = titleOf(ls), chapter = ls.length > 1 && S.kp !== "Fără capitol" ? noEx(S.kp) : ""; let deck = null, fail = "";
+    if (aiReady()) { try { deck = await composeSlides(ls, { materie: S.mat, clasa: S.cl, n: S.pn, quiz: S.pq, notes: S.pa, chapter }); } catch (e) { fail = e.message; } }
+    if (!deck) { deck = localSlides(ls, { n: S.pn, quiz: S.pq }); if (fail) toast(fail + " Am făcut o variantă simplă din text."); }
+    if (deck.slides.length < 2) throw new Error("Lecția nu are destulă informație pentru o prezentare");
+    deck.titlu = deck.titlu || tema; PX = { deck, meta: { materie: S.mat, clasa: S.cl, tema } }; drawDeck(); $("#out").scrollIntoView({ behavior: "smooth" });
+  } catch (e) { toast(e.message || "Eroare"); }
+  busy = false; const g2 = $("#gop"); if (g2) { g2.disabled = false; g2.textContent = "✦ Generează prezentarea" + (aiReady() ? " cu AI" : ""); }
+}
+function drawDeck() {
+  const { deck, meta } = PX, N = deck.slides.length;
+  $("#out").innerHTML = `<div class="card tst"><div class="th"><div><span class="pill">${esc(meta.materie)} · cl. ${esc(meta.clasa)}</span><h2>${esc(deck.titlu)}</h2><p class="tag">${N + 1} diapozitive · ${deck.ai ? "✦ creat cu AI din textul lecției" : "variantă simplă, din textul lecției"}</p>${deck.ai ? '<p class="tag warn">Verifică conținutul înainte de a-l folosi la oră. Poți edita (✎), muta sau șterge orice diapozitiv.</p>' : ""}</div></div>
+<ol class="qs-list pxl"><li class="qs"><div class="qh"><b>1</b><span class="pill">Titlu</span></div><p class="qt">${esc(deck.titlu)}</p></li>${deck.slides.map((s, i) => `<li class="qs"><div class="qh"><b>${i + 2}</b><span class="pill">${TIPS[s.tip] || "Conținut"}</span><span class="qa">${N > 1 ? `<button type="button" class="ib sm" data-pup="${i}" aria-label="Mută sus" ${i ? "" : "disabled"}>↑</button><button type="button" class="ib sm" data-pdn="${i}" aria-label="Mută jos" ${i < N - 1 ? "" : "disabled"}>↓</button>` : ""}<button type="button" class="ib sm" data-ped="${i}" aria-label="Editează" title="Editează">✎</button><button type="button" class="ib sm" data-prm="${i}" aria-label="Șterge" title="Șterge">×</button></span></div><p class="qt">${esc(s.titlu)}</p><ul class="pxu">${s.tip === "definitii" ? s.termeni.map(t => `<li><b>${esc(t.termen)}</b> — ${esc(t.definitie)}</li>`).join("") : s.puncte.map(p => `<li>${esc(p)}</li>`).join("")}</ul>${s.notite ? `<p class="tag">Notițe: ${esc(s.notite)}</p>` : ""}</li>`).join("")}</ol>
+<div class="row" style="margin-top:1.2rem"><button class="btn" id="dpx" type="button">⬇ Descarcă prezentarea (.pptx)</button><button class="btn o" id="againpx" type="button">Alta nouă</button></div></div>`;
+}
+function editSlide(i) {
+  const s = PX.deck.slides[i], defs = s.tip === "definitii";
+  modal("Editează diapozitivul", `<label>Titlul<input name="t" required value="${esc(s.titlu)}"></label><label>${defs ? "Noțiunile (câte una pe rând, în forma Termen: definiție)" : "Punctele (câte unul pe rând)"}<textarea name="p" rows="7">${esc(defs ? s.termeni.map(t => t.termen + ": " + t.definitie).join("\n") : s.puncte.join("\n"))}</textarea></label><label>Notițe pentru profesor<textarea name="n" rows="3">${esc(s.notite)}</textarea></label>`, async f => {
+    const E = f.elements, lines = E.p.value.split("\n").map(x => x.trim()).filter(Boolean); if (!lines.length) throw new Error("Scrie cel puțin un rând");
+    if (defs) { const t = lines.map(l => { const k = l.indexOf(":"); return k > 0 ? { termen: l.slice(0, k).trim(), definitie: l.slice(k + 1).trim() } : null; }).filter(x => x && x.termen && x.definitie).slice(0, 4); if (!t.length) throw new Error("Scrie noțiunile în forma „Termen: definiție”"); s.termeni = t; } else s.puncte = lines.slice(0, 6);
+    s.titlu = E.t.value.trim() || s.titlu; s.notite = E.n.value.trim().slice(0, 500); drawDeck();
+  });
+}
+async function pxClick(b) {
+  const d = b.dataset, a = PX.deck.slides;
+  if (b.id === "againpx") return makePptx();
+  if (b.id === "dpx") { b.disabled = true; toast("Se creează prezentarea…"); try { saveBlob(await buildPptx(PX.deck, { ...PX.meta, theme: S.pt, autor: S.au }), `prezentare-${pslug(PX.deck.titlu)}.pptx`); toast("Prezentarea a fost descărcată"); } catch (e) { toast(e.message || "Nu am putut crea prezentarea"); } b.disabled = false; return; }
+  if (d.pup !== undefined) { const i = +d.pup; [a[i - 1], a[i]] = [a[i], a[i - 1]]; return drawDeck(); }
+  if (d.pdn !== undefined) { const i = +d.pdn; [a[i + 1], a[i]] = [a[i], a[i + 1]]; return drawDeck(); }
+  if (d.ped !== undefined) return editSlide(+d.ped);
+  if (d.prm !== undefined) { if (a.length <= 2) return toast("Prezentarea trebuie să aibă cel puțin două diapozitive"); a.splice(+d.prm, 1); return drawDeck(); }
+}
 /* ---------- pornire ---------- */
 const load = async () => {
   try { L = (await getDocs(collection(db, "lectii"))).docs.map(d => ({ id: d.id, ...d.data() })); } catch (e) { L = []; }

@@ -1,7 +1,7 @@
-import { $, esc, toast, whenRole, modal, can, db, collection, getDocs, setDoc, deleteDoc, doc } from "../core/core.js";
+import { $, esc, toast, whenRole, modal, can, db, collection, getDocs, setDoc, deleteDoc, doc, writeBatch } from "../core/core.js";
+import { parseFiles, slug } from "./orar-import.js?v=27";
 import { BELLS, CLASSES, LETTERS, SUBJECTS, canon } from "../core/config.js";
 const D = [["lu", "Luni"], ["ma", "Marți"], ["mi", "Miercuri"], ["jo", "Joi"], ["vi", "Vineri"]], N = BELLS.length, RX = /^(XII|XI|X|IX|VIII|VII|VI|V)\s*[-–]?\s*([A-Za-z])$/;
-const slug = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const les = (o, d) => { const z = o.zile?.[d], a = Array.isArray(z) ? z : String(z || "").split("\n"); return Array.from({ length: N }, (_, i) => (a[i] || "").trim()); };
 const mi = t => t.split(":").reduce((h, m) => h * 60 + +m), subIdx = s => { const i = SUBJECTS.indexOf(canon(s)); return i < 0 ? 99 : i; };
 let all = [], tip = "elevi", cl = "", lt = "", sub = "Toate", cur = "", sel = null;
@@ -61,6 +61,35 @@ $("#ow").onclick = e => {
   if (d.t) tip = d.t; if (d.c) { cl = d.c; lt = LETTERS.find(l => stu().some(x => x.clasa === cl && x.lit === l)) || lt; } if (d.l) lt = d.l; if (d.s !== undefined) sub = d.s; if (d.n) cur = d.n;
   if (d.di !== undefined) di = +d.di; if (d.t || d.c || d.l || d.s !== undefined || d.n || d.di !== undefined) draw();
 };
+/* ── Import din fișier (.xlsx / .docx / .csv): fișierul NU se salvează, doar orarele extrase ── */
+const importFile = () => {
+  let res = null;
+  const d = modal("Importă orarul din fișier", `<p class="tag">Alege fișierul cu orarul (Excel .xlsx sau Word .docx). Poți alege mai multe fișiere deodată: orarul elevilor și al profesorilor. Fișierul nu se păstrează pe site, se citește doar orarul din el.</p>
+<label>Fișierul<input name="f" type="file" accept=".xlsx,.xls,.docx,.csv,.ods" multiple></label><div id="pv"></div>
+<label class="chk"><input type="checkbox" name="rp"> Șterge orarele vechi care nu apar în fișier</label>`, async f => {
+    if (!res) throw new Error("Alege un fișier cu orarul");
+    const E = f.elements, ops = [...res.students.map(o => [`elevi-${o.clasa}-${o.lit}`, o]), ...res.teachers.map(o => [`profesori-${slug(o.nume)}`, o])], keep = new Set(ops.map(x => x[0]));
+    const tipuri = new Set([res.students.length && "elevi", res.teachers.length && "profesori"].filter(Boolean)), del = E.rp.checked ? all.filter(o => tipuri.has(o.tip) && !keep.has(o.id)).map(o => o.id) : [];
+    const all2 = [...ops.map(([id, o]) => ({ s: [id, o] })), ...del.map(id => ({ d: id }))];
+    for (let i = 0; i < all2.length; i += 400) { const b = writeBatch(db); all2.slice(i, i + 400).forEach(x => x.s ? b.set(doc(db, "orar", x.s[0]), x.s[1]) : b.delete(doc(db, "orar", x.d))); await b.commit(); }
+    toast(`Importat: ${res.students.length} clase, ${res.teachers.length} profesori`); load();
+  }, "Salvează orarul");
+  const f = d.querySelector("form"), go = f.querySelector(".btn"), pv = f.querySelector("#pv"); go.disabled = true;
+  f.elements.f.onchange = async () => {
+    res = null; go.disabled = true; const files = [...f.elements.f.files]; if (!files.length) { pv.innerHTML = ""; return; }
+    pv.innerHTML = '<p class="tag">Se citește…</p>';
+    try {
+      res = await parseFiles(files, all);
+      const L = o => res.lessons(o), chip = t => `<span class="pill">${esc(t)}</span>`;
+      pv.innerHTML = `<div class="capi"><b>Am găsit:</b> ${res.students.length} clase · ${res.teachers.length} profesori</div>
+${res.students.length ? `<p class="kick">Clase</p><div class="row" style="gap:.4rem">${res.students.map(o => chip(`${o.nume} · ${L(o)} ore`)).join("")}</div>` : ""}
+${res.teachers.length ? `<p class="kick">Profesori</p><div class="row" style="gap:.4rem">${res.teachers.map(o => chip(`${o.nume}${o.materie ? " · " + o.materie : ""}`)).join("")}</div>` : ""}
+${res.warn.map(w => `<p class="tag warn">${esc(w)}</p>`).join("")}<p class="tag" style="margin-top:.8rem">Verifică lista, apoi apasă „Salvează orarul”. Orarele cu aceeași clasă sau același profesor se înlocuiesc.</p>`;
+      go.disabled = false;
+    } catch (e) { pv.innerHTML = `<p class="tag warn">${esc(e.message)}</p>`; }
+  };
+};
+$("#impO").onclick = importFile;
 $("#addO").onclick = () => edit(); $("#editO").onclick = () => sel && edit(sel);
 $("#delO").onclick = async () => { if (sel && confirm("Ștergi acest orar?")) { await deleteDoc(doc(db, "orar", sel.id)); toast("Șters"); load(); } };
 $("#prtO").onclick = () => print();

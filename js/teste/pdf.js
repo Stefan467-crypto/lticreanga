@@ -1,5 +1,5 @@
 // Creează PDF-uri direct în browser (fără biblioteci): paginile se desenează pe canvas și se împachetează într-un PDF.
-import { correct, nota, scale, rangeOf } from "./engine.js?v=24";
+import { correct, nota, scale, rangeOf } from "./engine.js?v=27";
 const W = 1654, H = 2339, M = 130, FS = 33, FF = 'Georgia, "Times New Roman", serif', OL = "ABCDEFGH", SCHOOL = "Liceul Teoretic „Ion Creangă” Cahul";
 class Doc {
   constructor(foot, fs = FS) { this.foot = foot; this.fs = fs; this.pages = []; this.np(); }

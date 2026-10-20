@@ -1,5 +1,5 @@
 // Service worker: site instalabil + funcționează și fără internet (pentru paginile deja vizitate)
-const V = "lt-ic-v12";
+const V = "lt-ic-v13";
 self.addEventListener("install", e => { e.waitUntil(caches.open(V).then(c => c.addAll(["./", "css/style.css", "js/core/core.js", "js/core/theme.js", "img/hero1.jpg"]).catch(() => { })).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => clients.claim())); });
 self.addEventListener("fetch", e => {

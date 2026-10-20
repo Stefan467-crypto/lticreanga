@@ -22,6 +22,15 @@ sw.js, manifest.webmanifest   aplicație instalabilă
 ## Roluri
 Administrator (tot), profesor (anunțuri, resurse, lecții), membru CE (anunțuri, meniul cantinei), vizitator (doar citește). Conturile se creează din Panou. Primul admin: documentul `users/<UID>` cu `email`, `nume`, `role: "admin"`.
 
+## Generator (teste și prezentări)
+Pagina `teste` se numește „Generator”. Profesorii și administratorii au două file: **Teste** și **Prezentări**. La Prezentări, AI (același Worker Cloudflare) scrie planul diapozitivelor numai din textul lecțiilor alese, planul se poate edita, iar fișierul .pptx se creează în browser (`js/teste/pptx.js`, biblioteca `js/lib/pptxgen.bundle.js`).
+
+## Fișiere (Resurse, Informații)
+Fiecare fișier are butoanele „Deschide” (filă nouă) și „Descarcă”. Dacă PDF/ZIP nu se deschid, în Cloudinary → Settings → Security se bifează „PDF and ZIP files delivery”.
+
+## Orarul din fișier
+În pagina Orar, administratorul apasă „Importă din fișier” (.xlsx, .docx, .csv, .xls). Fișierul nu se salvează, doar orarele extrase (`js/pages/orar-import.js`, `js/core/office.js`).
+
 ## Generator de teste
 Testul se compune cu AI din lecțiile alese (când ești autentificat și `AI_URL` e setat); dacă AI nu răspunde, se folosește generatorul local. Exercițiile de același tip sunt grupate. Manualul PDF se încarcă o dată în Resurse („Manual digital”), apoi în Lecții → „Din manualul de pe site” se citește cuprinsul (semne de carte sau pagina „Cuprins”, oriunde în carte) și se importă temele pe capitole. Testele se compun doar din textul lecției, local, în browser; modelele „ca la examen” sunt în `js/teste/exam.js`.
 

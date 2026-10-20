@@ -2,8 +2,8 @@
 // Tot ce vine de la AI este verificat: propoziția-sursă trebuie să existe în textul lecției, șabloanele trebuie să se calculeze.
 import { AI_URL } from "../core/config.js";
 import { auth } from "../core/firebase.js";
-import { nz, checkTemplate, calc, parseC, exercisesOf } from "./engine.js?v=24";
-import { pickSources, planOf, styleOf, assignSources, validateGroup, localTask } from "./surse.js?v=24";
+import { nz, checkTemplate, calc, parseC, exercisesOf } from "./engine.js?v=27";
+import { pickSources, planOf, styleOf, assignSources, validateGroup, localTask } from "./surse.js?v=27";
 export const aiOn = () => !!AI_URL;
 export const pause = ms => new Promise(r => setTimeout(r, ms));
 let lastModel = ""; // modelul care a răspuns ultima dată (Gemini nu cere pauzele lungi necesare pentru limita pe minut Groq)
@@ -226,4 +226,35 @@ ${ctx}`);
     });
   }
   return out;
+}
+
+
+/* ---- prezentări .pptx: AI scrie planul diapozitivelor, numai din textul lecțiilor alese ---- */
+const SL_TIP = ["obiective", "continut", "definitii", "rezumat", "intrebari"];
+export async function composeSlides(texts, { materie, clasa, n = 10, quiz = true, notes = true, chapter = "" }) {
+  const pool = texts.length > 14 ? Array.from({ length: 14 }, (_, i) => texts[Math.floor(i * texts.length / 14)]) : texts, per = Math.max(700, Math.floor(9000 / pool.length));
+  const body = pool.map(t => `### ${t.tema}\n${t.text.slice(0, per)}`).join("\n\n"), lang = LANGS[materie] ? `scrie în limba ${LANGS[materie]} (nu în română), corect gramatical` : "limba română corectă gramatical, cu diacritice (ă, â, î, ș, ț)";
+  const j = await call(`Ești profesor de ${materie}, clasa ${clasa}, în Republica Moldova. Creează PLANUL unei PREZENTĂRI PowerPoint pentru ora la clasă${chapter ? ` (capitolul „${chapter}”)` : ""}, din TEXTUL lecțiilor de mai jos, și NUMAI din el.
+REGULI: nu folosi cunoștințe din afara textului și nu inventa fapte, date sau numere; ignoră trimiterile la figuri, pagini, activități sau exerciții din manual și resturile din PDF (numere de pagină, titluri rupte); ${lang}.
+STRUCTURA: exact ${n - 1} diapozitive (fără diapozitivul de titlu), în ordinea:
+1) un diapozitiv "obiective" (3-4 puncte: ce vor învăța elevii);
+2) diapozitive "continut" (3-5 puncte fiecare, câte un subiect pe diapozitiv, în ordinea din text) și 1-2 diapozitive "definitii" (2-4 termeni cu definiție scurtă), dacă textul are definiții;
+3) un diapozitiv "rezumat" (3-5 puncte)${quiz ? ';\n4) ultimul diapozitiv, "intrebari": 4-5 întrebări de verificare (fiecare întrebare = un punct, fără răspuns)' : ""}.
+STIL: titlul diapozitivului max. 8 cuvinte; fiecare punct max. 16 cuvinte, o expresie sau o propoziție clară (nu paragraf), fără numerotare; ${notes ? '"notite" = 1-3 propoziții pentru profesor (ce explică, ce întrebare pune clasei, un exemplu din text)' : '"notite" = ""'}.
+Returnează DOAR JSON:
+{"titlu":"titlul prezentării (max. 8 cuvinte)","diapozitive":[{"tip":"obiective|continut|definitii|rezumat|intrebari","titlu":"","puncte":[""],"termeni":[{"termen":"","definitie":""}],"notite":""}]}
+La "definitii" completezi "termeni" (puncte = []); la celelalte tipuri completezi "puncte" (termeni = []).
+
+TEXT:
+${body}`, { temperature: 0.4 });
+  let slides = objs(j.diapozitive).map(s => {
+    let tip = SL_TIP.includes(s.tip) ? s.tip : "continut"; const puncte = arr(s.puncte).map(x => str(x, 220)).filter(Boolean).slice(0, 6), termeni = objs(s.termeni).map(x => ({ termen: str(x.termen, 60), definitie: str(x.definitie, 260) })).filter(x => x.termen && x.definitie).slice(0, 4);
+    if (tip === "definitii" && !termeni.length) tip = "continut"; if (tip !== "definitii" && !puncte.length && termeni.length) tip = "definitii";
+    return { tip, titlu: str(s.titlu, 90), puncte: tip === "definitii" ? [] : puncte, termeni: tip === "definitii" ? termeni : [], notite: notes ? str(s.notite, 500) : "" };
+  }).filter(s => s.titlu && (s.puncte.length || s.termeni.length));
+  const rank = s => s.tip === "obiective" ? 0 : s.tip === "rezumat" ? 8 : s.tip === "intrebari" ? 9 : 5;
+  slides = slides.map((s, i) => [s, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
+  if (!quiz) slides = slides.filter(s => s.tip !== "intrebari");
+  if (slides.length < 3) throw new Error("AI nu a creat destule diapozitive. Încearcă din nou.");
+  return { titlu: str(j.titlu, 90), slides: slides.slice(0, n - 1), ai: true };
 }

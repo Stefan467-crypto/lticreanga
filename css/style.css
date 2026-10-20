@@ -471,3 +471,14 @@ html.a-big .dd-o{min-height:54px;font-size:1.05rem}html.a-big .opt span{padding:
 .bld{display:grid;gap:.9rem}.blist{display:grid;gap:.7rem}.bi{border:1px solid var(--line,#e3dccf);border-radius:16px;padding:.8rem 1rem;background:var(--card,#fff)}.bi .qt{margin:.5rem 0 .2rem}.bprev,.bi .bprev{font-size:.9rem;color:var(--mut,#6b6558)}
 .bsec{display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-top:.6rem;padding:.55rem .9rem;border-radius:14px;background:var(--soft,#f4efe6)}.bsec b{display:block;color:var(--ac,#8a1c2b)}.badd{align-self:start}
 .bpal{display:grid;gap:.5rem;margin-top:.7rem}.bt{display:flex;flex-direction:column;align-items:flex-start;gap:.15rem;text-align:left;padding:.7rem 1rem;border:1px solid var(--line,#e3dccf);border-radius:14px;background:var(--card,#fff);font:inherit;cursor:pointer}.bt:hover{border-color:var(--ac,#8a1c2b)}.bt span{font-size:.85rem;color:var(--mut,#6b6558)}.bsug{display:flex;gap:.5rem;align-items:center;font-size:.92rem;padding:.3rem .2rem}.bsum{margin:.2rem 0}
+
+/* ===== fișiere: Deschide / Descarcă ===== */
+.fbt{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.q .fbt{margin-top:auto;padding-top:.5rem}.q .fbt .btn{text-transform:uppercase;color:var(--on)}.q .fbt .btn.o{color:var(--ac)}
+.dw .q:hover{transform:none}
+.tools .impo{margin-left:auto}.tools .impo+.plus{margin-left:0}
+.modal label.chk{display:flex;gap:.6rem;align-items:center;font-weight:500;text-transform:none;letter-spacing:0;margin:1rem 0}.modal label.chk input{width:auto;min-height:0}
+.modal .pill{display:inline-block;margin:0;text-transform:none;letter-spacing:0;font-size:.76rem}.tag.warn{color:#b3261e}
+/* ===== generator: prezentări ===== */
+.tabs.seg.gm{margin-bottom:1.1rem}
+.pxu{margin:.2rem 0 .3rem;padding-left:1.2rem;display:grid;gap:.35rem}.pxl{list-style:none;padding:0;margin:1rem 0 0;display:grid;gap:.8rem}
