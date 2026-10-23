@@ -32,6 +32,7 @@ const ABBR = {
   lstraina: "Limba străină", lstrainai: "Limba străină (I)", lstrainaii: "Limba străină (II)", edprinfilm: "Educația prin film", edstdeviata: "Educația pentru stil de viață", edecologica: "Educația ecologică",
 };
 const key = s => nrm(s).replace(/ /g, "");
+export const ro = s => String(s ?? "").replace(/ş/g, "ș").replace(/Ş/g, "Ș").replace(/ţ/g, "ț").replace(/Ţ/g, "Ț"); // cedilă → virgulă (forma corectă în română)
 export function lessonName(raw) {
   const t = String(raw ?? "").trim(); if (!t || /^[-–—.]+$/.test(t)) return "";
   const m = /^(.*?)\s*(\(.*\))?$/.exec(t), base = m[1].trim(), suf = (m[2] || "").trim();
@@ -69,32 +70,55 @@ function studentBlocks(g, out) {
 }
 
 /* ---------- orarul profesorilor ---------- */
-function teacherBlocks(g, out) {
-  for (let r = 0; r < g.length; r++) {
-    const row = g[r], dn = row.map(dayOf), set = new Set(dn.filter(Boolean)); if (set.size < 3) continue;
-    // rândul cu numerele orelor: același rând (fără zile) sau unul din următoarele două
-    let nr = -1; for (let k = r; k <= Math.min(r + 2, g.length - 1); k++) if (g[k].filter(x => /^[1-9]$/.test(x)).length >= 8) { nr = k; break; }
-    if (nr < 0) continue;
+// Un tabel de profesori poate fi tipărit în mai multe „benzi” (ex. pagina 1: nume + Luni, Marți; pagina 2: Miercuri, Joi, Vineri, fără nume).
+// Fiecare bandă = un rând cu zilele + un rând cu orele 1–7. Benzile fără nume se leagă de profesori după ordinea rândurilor din banda cu nume.
+const isHour = x => /^[1-9]$/.test(String(x).trim());
+function bandAt(g, r) {
+  const dn = g[r].map(dayOf); if (!dn.some(Boolean)) return null;
+  for (let k = r; k <= Math.min(r + 2, g.length - 1); k++) {
+    if (g[k].filter(isHour).length < 5) continue;
     const colMap = []; let cur = null;
-    row.forEach((_, c) => { cur = dn[c] || cur; if (/^[1-9]$/.test(g[nr][c]) && cur) colMap[c] = { d: cur, l: +g[nr][c] - 1 }; });
-    const cols = colMap.map((m, c) => m ? c : -1).filter(c => c >= 0); if (cols.length < 8) continue;
-    const first = cols[0];
-    for (let q = nr + 1; q < g.length; q++) {
-      const rw = g[q]; if (dn.length && rw.map(dayOf).filter(Boolean).length >= 3) break;
-      let name = ""; for (let c = 0; c < first; c++) { const v = rw[c]; if ((v.match(/\p{L}/gu) || []).length >= 3 && v.length > name.length) name = v; }
-      if (!name || /profesor|numele|prenume|^nr/i.test(name)) continue;
-      const o = out.get(slug(name)) || { tip: "profesori", nume: name.replace(/\s+/g, " "), materie: "", zile: emptyZile() };
-      for (const c of cols) { const m = colMap[c]; if (m.l >= 0 && m.l < N && DAYS.includes(m.d)) { const v = teacherCell(rw[c]); if (v) o.zile[m.d][m.l] = v; } }
-      out.set(slug(name), o);
-    }
-    return; // un tabel de profesori pe foaie
+    g[r].forEach((_, c) => { cur = dn[c] || cur; if (isHour(g[k][c]) && cur) colMap[c] = { d: cur, l: +g[k][c] - 1 }; });
+    const cols = colMap.map((m, c) => m ? c : -1).filter(c => c >= 0);
+    if (cols.length >= 5) return { r, nr: k, colMap, cols };
   }
+  return null;
 }
+function teacherBlocks(g, out, ctx) {
+  let found = 0;
+  for (let r = 0; r < g.length; r++) {
+    const band = bandAt(g, r); if (!band) continue;
+    const { nr, colMap, cols } = band, first = cols[0], last = cols.at(-1);
+    let end = g.length; for (let q = nr + 1; q < g.length; q++) if (bandAt(g, q)) { end = q; break; }
+    // coloana „Disciplina” (opțională, o scrie exportul): în antet, înaintea sau după coloanele orelor
+    let subjCol = -1; for (let k = r; k <= nr && subjCol < 0; k++) g[k].forEach((v, c) => { if ((c < first || c > last) && /disciplin|materi/.test(nrm(v)) && subjCol < 0) subjCol = c; });
+    const rows = []; for (let q = nr + 1; q < end; q++) rows.push(g[q]);
+    const nameOf = rw => { let name = ""; for (let c = 0; c < first; c++) { const v = rw[c]; if (c === subjCol || dayOf(v)) continue; if ((v.match(/\p{L}/gu) || []).length >= 3 && v.length > name.length) name = v; } return /profesor|numele|prenume|^nr/i.test(name) ? "" : ro(name).replace(/\s+/g, " ").trim(); };
+    let names;
+    if (first > 0) { names = rows.map(nameOf); ctx.names = names.filter(Boolean); }
+    else { // bandă fără nume: rândurile se potrivesc, în ordine, cu profesorii din banda precedentă
+      while (rows.length && rows.at(-1).every(x => !x)) rows.pop();
+      names = rows.map((_, i) => ctx.names[i] || "");
+      if (rows.length !== ctx.names.length) ctx.warn.push(`Banda cu zilele ${[...new Set(cols.map(c => colMap[c].d))].map(d => DAYS_RO[d]).join(", ")} are ${rows.length} rânduri, iar lista de profesori are ${ctx.names.length}. Verifică orarul acestor profesori.`);
+    }
+    rows.forEach((rw, i) => {
+      const name = names[i]; if (!name) return;
+      const o = out.get(slug(name)) || { tip: "profesori", nume: name, materie: "", zile: emptyZile() };
+      for (const c of cols) { const m = colMap[c]; if (m.l >= 0 && m.l < N && DAYS.includes(m.d)) { const v = teacherCell(rw[c]); if (v) o.zile[m.d][m.l] = v; } }
+      if (subjCol >= 0 && rw[subjCol]) o.materie = lessonName(rw[subjCol]);
+      out.set(slug(name), o);
+    });
+    found++; r = end - 1;
+  }
+  return found;
+}
+const DAYS_RO = { lu: "Luni", ma: "Marți", mi: "Miercuri", jo: "Joi", vi: "Vineri" };
 
 /* materia profesorului = materia cea mai frecventă la orele lui, din orarul elevilor */
 function inferSubjects(teachers, students) {
   const idx = new Map(students.map(s => [s.clasa + "|" + s.lit, s.zile]));
   for (const t of teachers) {
+    if (t.materie) continue;
     const votes = new Map();
     for (const d of DAYS) t.zile[d].forEach((cell, l) => { const k = clsOfCell(cell), z = k && idx.get(k); if (!z) return; const b = baseSubject(z[d]?.[l] || ""); if (b) votes.set(b, (votes.get(b) || 0) + (SECOND.has(b) ? 0.4 : 1)); });
     const best = [...votes.entries()].sort((a, b) => b[1] - a[1])[0]; if (best) t.materie = best[0];
@@ -106,7 +130,7 @@ export async function parseFiles(files, studentsKnown = []) {
   const st = new Map(), te = new Map(), warn = [];
   for (const f of files) {
     let tables; try { tables = await readTables(f); } catch (e) { throw new Error(`${f.name}: ${e.message}`); }
-    const a = st.size, b = te.size; for (const g of tables) { studentBlocks(g, st); teacherBlocks(g, te); }
+    const a = st.size, b = te.size, ctx = { names: [], warn }; for (const g of tables) { if (!teacherBlocks(g, te, ctx)) studentBlocks(g, st); }
     if (st.size === a && te.size === b) warn.push(`${f.name}: nu am găsit niciun orar (verifică antetul: clasele „V A … XII B” sau zilele „Luni … Vineri” cu orele 1–7).`);
   }
   const students = [...st.values()].filter(o => countLessons(o.zile)), teachers = [...te.values()].filter(o => countLessons(o.zile));

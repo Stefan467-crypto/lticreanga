@@ -2,7 +2,7 @@
 // Se activează singure după conținutul lecției: o lecție despre căldură primește probleme cu Q = c·m·Δt, una despre curent – cu legea lui Ohm etc.
 // Sintaxa șablonului (aceeași ca la „@problema” din motor): „Enunț cu {a:min-max:pas} … => expresie | unitate ~ formula”.
 // Constantele (g = 10 N/kg, c apei = 4200 J/(kg·°C) etc.) sunt scrise în enunț, ca elevul să le aibă la îndemână.
-import { nz } from "./engine.js?v=27";
+import { nz } from "./engine.js?v=28";
 
 // [materii, cuvinte-cheie (pe text normalizat, fără diacritice), de câte ori trebuie să apară în lecție, șablonul]
 const B = [

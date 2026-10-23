@@ -27,6 +27,15 @@ service cloud.firestore {
     match /lectii_text/{id} { allow read: if true; allow write: if prof(); }
     match /meniu/{id} { allow read: if true; allow write: if ce(); }
 
+    match /mesaje/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['nume', 'mesaj', 'toUid', 'toNume', 'ts'])
+        && request.resource.data.nume is string && request.resource.data.nume.size() > 1 && request.resource.data.nume.size() <= 80
+        && request.resource.data.mesaj is string && request.resource.data.mesaj.size() > 0 && request.resource.data.mesaj.size() <= 2000
+        && request.resource.data.toUid is string && request.resource.data.toUid.size() > 0;
+      allow read, delete: if admin() || (prof() && resource.data.toUid == request.auth.uid);
+      allow update: if prof() && resource.data.toUid == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['citit']);
+    }
+
     match /{col}/{id} {
       allow read: if col in ['evenimente','pagini','profesori','regulamente','orar','consiliu','succese'];
       allow write: if admin() && col in ['evenimente','pagini','profesori','regulamente','orar','consiliu','succese'];

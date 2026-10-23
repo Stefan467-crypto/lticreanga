@@ -29,7 +29,7 @@ export const isCloud = u => /^https?:\/\/res\.cloudinary\.com\//i.test(u || "");
 const fname = (u, n) => (n && n.trim()) || decodeURIComponent(String(u || "").split(/[?#]/)[0].split("/").pop() || "fisier");
 const BLOCK = "Fișierul nu s-a putut deschide. Dacă e PDF sau ZIP, administratorul trebuie să bifeze în Cloudinary → Settings → Security → „PDF and ZIP files delivery”.";
 async function blobOf(u) { let r; try { r = await fetch(u); } catch (e) { throw new Error(BLOCK); } if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? BLOCK : "Fișierul nu poate fi descărcat (" + r.status + ")"); return r.blob(); }
-export function saveBlob(b, n) { const a = document.createElement("a"), u = URL.createObjectURL(b); a.href = u; a.download = n; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 8000); }
+export function saveBlob(b, n) { if (/\.pptx$/i.test(n) && b.type !== "application/vnd.openxmlformats-officedocument.presentationml.presentation") b = new Blob([b], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }); const a = document.createElement("a"), u = URL.createObjectURL(b); a.href = u; a.download = n; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 8000); }
 export async function downloadFile(url, name) {
   const n = fname(url, name);
   if (!isCloud(url)) { window.open(url, "_blank", "noopener"); return; }
@@ -72,10 +72,10 @@ addEventListener("keydown", e => { if (e.key === "Escape" && dr.classList.contai
 document.querySelectorAll("[data-social]").forEach(a => { const u = SOCIAL[a.dataset.social]; if (u) { a.href = u; a.hidden = false; } });
 document.querySelectorAll("[data-catalog]").forEach(a => { if (!CATALOG_URL || /example\.com/.test(CATALOG_URL)) { a.hidden = true; return; } a.href = CATALOG_URL; a.target = "_blank"; a.rel = "noopener"; });
 /* roluri */
-export let role = "vizitator", user = null;
+export let role = "vizitator", sub = "", user = null;
 const cbs = []; let ready = false;
 export const whenRole = cb => ready ? cb(role) : cbs.push(cb);
-const CAP = { profesor: ["anunturi", "resurse"], ce: ["anunturi", "cantina"] };
+const CAP = { profesor: ["anunturi", "resurse", "mesaje"], ce: ["anunturi", "cantina"] };
 export const can = c => role === "admin" || (CAP[role] || []).includes(c);
 function apply() {
   document.querySelectorAll("[data-need]").forEach(el => el.hidden = !can(el.dataset.need));
@@ -83,10 +83,10 @@ function apply() {
   a.onclick = user ? e => { e.preventDefault(); signOut(auth).then(() => location.href = "./"); } : null;
 }
 onAuthStateChanged(auth, async u => {
-  user = u; role = "vizitator"; apply();
+  user = u; role = "vizitator"; sub = ""; apply();
   if (u) try {
     const s = await Promise.race([getDoc(doc(db, "users", u.uid)), new Promise((_, r) => setTimeout(() => r({ code: "timeout" }), 8000))]);
-    if (s.exists()) role = s.data().role || "vizitator"; else toast("Lipsește documentul users/" + u.uid);
+    if (s.exists()) { role = s.data().role || "vizitator"; sub = s.data().sub || ""; } else toast("Lipsește documentul users/" + u.uid);
   } catch (e) { toast("Rolul nu poate fi citit: " + (e.code || e.message)); }
   ready = true; apply(); cbs.splice(0).forEach(f => f(role));
 });

@@ -38,3 +38,10 @@ export const namesOf = s => [s, ...Object.entries(OLD).filter(([, v]) => v === s
 export const STATS = { elevi: 675, cadre: 35, claseGim: 19, claseLic: 6 };
 // Adresa serviciului AI gratuit (Cloudflare Worker, vezi README.md). Gol = AI oprit, site-ul merge normal doar cu motorul local.
 export const AI_URL = "https://lticreanga.popovstefan647.workers.dev";
+
+// ── Roluri din Panou. „Administrator” are două sub-roluri care apar și în Echipa didactică; Directorul are prioritate peste tot (primul în orar și în Echipa didactică).
+export const ROLES = [["admin-director", "Administrator – Director"], ["admin-profesor", "Administrator – Profesor"], ["admin", "Administrator (doar site)"], ["profesor", "Profesor"], ["ce", "Membru CE"]];
+export const roleKey = u => u.role === "admin" ? (u.sub === "director" || u.sub === "profesor" ? "admin-" + u.sub : "admin") : (u.role || "ce"); // contul → cheia din listă
+export const roleOf = k => k.startsWith("admin") ? { role: "admin", sub: k.split("-")[1] || "" } : { role: k, sub: "" };           // cheia din listă → câmpurile contului
+export const roleLabel = k => (ROLES.find(r => r[0] === k) || [0, k])[1];
+export const onTeam = k => k === "admin-director" || k === "admin-profesor" || k === "profesor"; // cine apare în pagina Echipa didactică

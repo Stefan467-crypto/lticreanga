@@ -1,5 +1,5 @@
 // Motor de teste: creează întrebări DOAR din textul lecțiilor (fără API, doar JavaScript).
-import { pickSources, styleOf, localTask, assignSources } from "./surse.js?v=27";
+import { pickSources, styleOf, localTask, assignSources } from "./surse.js?v=28";
 export const nz = s => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[„”“"'’()\[\];:!?]/g, " ").replace(/\s+/g, " ").trim();
 const rng = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const STOP = new Set("care este sunt prin pentru dintre precum această acest aceste acestea aceasta când unde cum dacă atunci având fiind poate pot trebuie între asupra după înainte numai foarte fiecare altfel însă deci astfel unui unei unor către mult multe fără sale său lor lui spre peste ceea cele celor același aceeași acelor altele alte alți doar decât cât câte câți nici sau încât deoarece aproximativ semnificativ".split(" "));

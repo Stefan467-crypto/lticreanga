@@ -1,10 +1,10 @@
 import { $, esc, toast, whenRole, modal, sheet, can, user, db, collection, getDocs, getDoc, setDoc, updateDoc, deleteDoc, deleteField, doc, writeBatch } from "../core/core.js";
-import { aiOn, analyzeLesson, tocAI, pause } from "../teste/ai.js?v=27";
-import { readPage } from "../teste/reading.js?v=27";
-import { nrm, parseToc, outlineItems, goodToc, finish, findTocPages, isNotLesson, fixTitle, trimToTheme, titleKey, findOffsetWith, verifyShifts } from "../teste/cuprins.js?v=27";
+import { aiOn, analyzeLesson, tocAI, pause } from "../teste/ai.js?v=28";
+import { readPage } from "../teste/reading.js?v=28";
+import { nrm, parseToc, outlineItems, goodToc, finish, findTocPages, isNotLesson, fixTitle, trimToTheme, titleKey, findOffsetWith, verifyShifts } from "../teste/cuprins.js?v=28";
 import { SUBJECTS, CLASSES, classesOf, canon } from "../core/config.js";
-import { parse, parseC, statOf, clean } from "../teste/engine.js?v=27";
-import { DEMO } from "../teste/demo.js?v=27";
+import { parse, parseC, statOf, clean } from "../teste/engine.js?v=28";
+import { DEMO } from "../teste/demo.js?v=28";
 let L = [], RES = [], fm = "", fc = "", fk = "", selMode = false, SEL = new Set(), VIS = [];
 const idx = s => { const i = SUBJECTS.indexOf(s); return i < 0 ? 99 : i; }, ci = c => CLASSES.indexOf(c), NC = (a, b) => String(a).localeCompare(String(b), "ro", { numeric: true });
 const opt = (a, v, all) => (all ? `<option value="">${all}</option>` : "") + a.map(x => `<option value="${esc(x)}"${x === v ? " selected" : ""}>${esc(x)}</option>`).join("");

@@ -2,8 +2,8 @@
 // Tot ce vine de la AI este verificat: propoziția-sursă trebuie să existe în textul lecției, șabloanele trebuie să se calculeze.
 import { AI_URL } from "../core/config.js";
 import { auth } from "../core/firebase.js";
-import { nz, checkTemplate, calc, parseC, exercisesOf } from "./engine.js?v=27";
-import { pickSources, planOf, styleOf, assignSources, validateGroup, localTask } from "./surse.js?v=27";
+import { nz, checkTemplate, calc, parseC, exercisesOf } from "./engine.js?v=28";
+import { pickSources, planOf, styleOf, assignSources, validateGroup, localTask } from "./surse.js?v=28";
 export const aiOn = () => !!AI_URL;
 export const pause = ms => new Promise(r => setTimeout(r, ms));
 let lastModel = ""; // modelul care a răspuns ultima dată (Gemini nu cere pauzele lungi necesare pentru limita pe minut Groq)

@@ -476,9 +476,13 @@ html.a-big .dd-o{min-height:54px;font-size:1.05rem}html.a-big .opt span{padding:
 .fbt{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
 .q .fbt{margin-top:auto;padding-top:.5rem}.q .fbt .btn{text-transform:uppercase;color:var(--on)}.q .fbt .btn.o{color:var(--ac)}
 .dw .q:hover{transform:none}
-.tools .impo{margin-left:auto}.tools .impo+.plus{margin-left:0}
+.tools .impo{margin-left:auto}.tools .impo+.impo,.tools .impo+.plus{margin-left:0}
 .modal label.chk{display:flex;gap:.6rem;align-items:center;font-weight:500;text-transform:none;letter-spacing:0;margin:1rem 0}.modal label.chk input{width:auto;min-height:0}
 .modal .pill{display:inline-block;margin:0;text-transform:none;letter-spacing:0;font-size:.76rem}.tag.warn{color:#b3261e}
 /* ===== generator: prezentări ===== */
 .tabs.seg.gm{margin-bottom:1.1rem}
 .pxu{margin:.2rem 0 .3rem;padding-left:1.2rem;display:grid;gap:.35rem}.pxl{list-style:none;padding:0;margin:1rem 0 0;display:grid;gap:.8rem}
+
+/* panou conturi + echipa didactică */
+.uwho{display:flex;align-items:center;gap:.8rem;min-width:0}.av.sm{width:46px;height:46px;margin:0;box-shadow:none;font-size:1.1rem;flex:none}.post.dir{border-color:var(--ac)}.pill.dir{background:var(--ac);color:var(--on)}.post .ct{font-size:.85rem;color:var(--mut)}
+.msg{display:block!important}.msg .mh{display:flex;justify-content:space-between;gap:.7rem;flex-wrap:wrap}.msg p{white-space:pre-wrap;margin:.5rem 0 .8rem}.msg.new{border-color:var(--ac)}

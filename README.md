@@ -19,8 +19,11 @@ sw.js, manifest.webmanifest   aplicație instalabilă
 - `AI_URL` — Worker-ul Cloudflare pentru AI (opțional; gol = AI oprit, site-ul merge cu motorul local).
 - `CLOUDINARY`, `HERO`, `BELLS`, materiile (`DEFS`), `STATS`.
 
+## Echipa didactică și conturi
+În Panou, butonul + deschide formularul de cont: nume, e-mail, parolă, rol, disciplină, fotografie, telefon și e-mail de contact (opționale). Pentru Profesor și Administrator–Profesor/Director, datele se scriu și în `profesori/<uid>` și apar în pagina Echipa didactică. Directorul (Administrator – Director) este primul în Echipa didactică și în orarul profesorilor. Intrările vechi fără cont se pot lega de un cont nou (câmpul „Preia datele unui profesor existent”).
+
 ## Roluri
-Administrator (tot), profesor (anunțuri, resurse, lecții), membru CE (anunțuri, meniul cantinei), vizitator (doar citește). Conturile se creează din Panou. Primul admin: documentul `users/<UID>` cu `email`, `nume`, `role: "admin"`.
+Administratorul are sub-rolurile Director și Profesor (câmpul `sub` din `users/<UID>`). Administrator (tot), profesor (anunțuri, resurse, lecții), membru CE (anunțuri, meniul cantinei), vizitator (doar citește). Conturile se creează din Panou. Primul admin: documentul `users/<UID>` cu `email`, `nume`, `role: "admin"`.
 
 ## Generator (teste și prezentări)
 Pagina `teste` se numește „Generator”. Profesorii și administratorii au două file: **Teste** și **Prezentări**. La Prezentări, AI (același Worker Cloudflare) scrie planul diapozitivelor numai din textul lecțiilor alese, planul se poate edita, iar fișierul .pptx se creează în browser (`js/teste/pptx.js`, biblioteca `js/lib/pptxgen.bundle.js`).
@@ -29,7 +32,7 @@ Pagina `teste` se numește „Generator”. Profesorii și administratorii au do
 Fiecare fișier are butoanele „Deschide” (filă nouă) și „Descarcă”. Dacă PDF/ZIP nu se deschid, în Cloudinary → Settings → Security se bifează „PDF and ZIP files delivery”.
 
 ## Orarul din fișier
-În pagina Orar, administratorul apasă „Importă din fișier” (.xlsx, .docx, .csv, .xls). Fișierul nu se salvează, doar orarele extrase (`js/pages/orar-import.js`, `js/core/office.js`).
+În pagina Orar, administratorul apasă „Importă din fișier” (.xlsx, .docx, .doc, .csv, .xls) sau „Exportă în fișier” (Excel sau Word, în aceeași formă, deci se poate reimporta). Fișierul nu se salvează, doar orarele extrase (`js/pages/orar-import.js`, `js/core/office.js`).
 
 ## Generator de teste
 Testul se compune cu AI din lecțiile alese (când ești autentificat și `AI_URL` e setat); dacă AI nu răspunde, se folosește generatorul local. Exercițiile de același tip sunt grupate. Manualul PDF se încarcă o dată în Resurse („Manual digital”), apoi în Lecții → „Din manualul de pe site” se citește cuprinsul (semne de carte sau pagina „Cuprins”, oriunde în carte) și se importă temele pe capitole. Testele se compun doar din textul lecției, local, în browser; modelele „ca la examen” sunt în `js/teste/exam.js`.

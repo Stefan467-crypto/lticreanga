@@ -1,7 +1,7 @@
 // Constructor de teste: profesorul alcătuiește singur testul, exercițiu cu exercițiu (fără generator).
 // Ciorna rămâne pe dispozitiv. PDF-ul (test + barem) se creează la sfârșit, cu aceleași funcții ca generatorul (js/teste/pdf.js).
 import { esc, toast, modal } from "../core/core.js";
-import { wt } from "../teste/engine.js?v=27";
+import { wt } from "../teste/engine.js?v=28";
 
 const OL = "ABCDEFGH";
 export const TYPES = [
@@ -144,7 +144,7 @@ export function createBuilder(ctx) { // ctx: { meta(), defTitle(), hasLesson(), 
   }
   async function exportPdf(kind) {
     const err = check(B); if (err) return toast(err); toast("Se creează PDF-ul…");
-    const P2 = await import("../teste/pdf.js?v=27"), V = [toV(B)], base = ctx.meta(), titlu = B.title.trim() || ctx.defTitle() || "Test", meta = { ...base, tema: titlu }, nm = ctx.slug(titlu) || "test";
+    const P2 = await import("../teste/pdf.js?v=28"), V = [toV(B)], base = ctx.meta(), titlu = B.title.trim() || ctx.defTitle() || "Test", meta = { ...base, tema: titlu }, nm = ctx.slug(titlu) || "test";
     if (kind !== "key") P2.save(await P2.toPdf(P2.testPages(meta, V, { titlu, minute: B.minute || 0, big: B.big })), `test-${nm}.pdf`);
     if (kind === "both") await new Promise(r => setTimeout(r, 700));
     if (kind !== "pdf") P2.save(await P2.toPdf(P2.keyPages(meta, V, { titlu })), `barem-${nm}.pdf`);

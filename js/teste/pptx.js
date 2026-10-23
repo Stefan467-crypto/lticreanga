@@ -10,7 +10,7 @@ const ICON = { obiective: "✓", intrebari: "?", rezumat: "★", continut: "" };
 export const slug = s => String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50) || "prezentare";
 
 export async function loadLib() {
-  if (!window.PptxGenJS) await new Promise((ok, no) => { const s = document.createElement("script"); s.src = new URL("../lib/pptxgen.bundle.js?v=27", import.meta.url).href; s.onload = ok; s.onerror = () => no(new Error("Nu am putut încărca modulul pentru prezentări. Verifică internetul și încearcă din nou.")); document.head.append(s); });
+  if (!window.PptxGenJS) await new Promise((ok, no) => { const s = document.createElement("script"); s.src = new URL("../lib/pptxgen.bundle.js?v=28", import.meta.url).href; s.onload = ok; s.onerror = () => no(new Error("Nu am putut încărca modulul pentru prezentări. Verifică internetul și încearcă din nou.")); document.head.append(s); });
   return window.PptxGenJS;
 }
 const shadow = () => ({ type: "outer", color: "000000", opacity: 0.12, blur: 6, offset: 2, angle: 90 });
@@ -73,5 +73,6 @@ function defs(pptx, s, sl, T) {
 
 export async function buildPptx(deck, o) {
   const Pptx = await loadLib(), pptx = makeDeck(Pptx, deck, o);
-  return pptx.write({ outputType: "blob" });
+  const b = await pptx.write({ outputType: "blob" }); // pptxgenjs dă tipul „application/zip”, iar telefoanele salvează atunci .zip: punem tipul corect de PowerPoint
+  return new Blob([b], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" });
 }
