@@ -486,3 +486,7 @@ html.a-big .dd-o{min-height:54px;font-size:1.05rem}html.a-big .opt span{padding:
 /* panou conturi + echipa didactică */
 .uwho{display:flex;align-items:center;gap:.8rem;min-width:0}.av.sm{width:46px;height:46px;margin:0;box-shadow:none;font-size:1.1rem;flex:none}.post.dir{border-color:var(--ac)}.pill.dir{background:var(--ac);color:var(--on)}.post .ct{font-size:.85rem;color:var(--mut)}
 .msg{display:block!important}.msg .mh{display:flex;justify-content:space-between;gap:.7rem;flex-wrap:wrap}.msg p{white-space:pre-wrap;margin:.5rem 0 .8rem}.msg.new{border-color:var(--ac)}
+/* orar pe telefon: comutatorul Elevi/Profesori pe tot rândul, sub el Import, Export și + pe un singur rând */
+@media(max-width:640px){.tools>.tabs.seg{flex:1 1 100%;width:100%;margin-bottom:0}.tools>.tabs.seg button{flex:1}.tools .impo{flex:1 1 0;min-width:0;margin-left:0;padding-inline:.5rem;font-size:.82rem;line-height:1.2;white-space:normal;text-align:center}.tools .impo+.plus{margin-left:0}}
+/* „Fereastră”: aceeași mărime ca ora cu text */
+.les{box-sizing:border-box;border:1px solid transparent;min-height:56px;padding:.6rem 1rem}.les.empty{border:1px dashed var(--bd)}.les.empty .lt{line-height:1.3}

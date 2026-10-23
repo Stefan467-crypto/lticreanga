@@ -13,6 +13,7 @@ const isDir = o => member(o)?.rol === "admin-director";
 const stu = () => all.filter(o => o.tip === "elevi" && o.clasa).sort((a, b) => CLASSES.indexOf(a.clasa) - CLASSES.indexOf(b.clasa) || LETTERS.indexOf(a.lit) - LETTERS.indexOf(b.lit)),
   tea = () => all.filter(o => o.tip === "profesori").sort((a, b) => isDir(b) - isDir(a) || subIdx(a.materie) - subIdx(b.materie) || a.nume.localeCompare(b.nume, "ro"));
 const chips = (arr, on, k, extra = () => "") => `<div class="tabs">${arr.map(([v, l]) => `<button data-${k}="${esc(v)}" aria-selected="${v === on}" class="${extra(v)}">${l}</button>`).join("")}</div>`;
+const lettersOf = c => ["X", "XI", "XII"].includes(c) ? LETTERS.slice(0, 2) : LETTERS; // clasele X–XII au doar A și B
 const SH = ["Lun", "Mar", "Mie", "Joi", "Vin"], wk = () => { const w = (new Date().getDay() + 6) % 7; return w < 5 ? w : 0; };
 let di = wk();
 const table = (o, title) => {
@@ -27,9 +28,9 @@ const draw = () => {
   let f = "", title = ""; sel = null;
   if (tip === "elevi") {
     const S = stu(), has = (c, l) => S.some(x => x.clasa === c && (!l || x.lit === l));
-    if (!cl) cl = CLASSES.find(c => has(c)) || CLASSES[0]; if (!lt) lt = LETTERS.find(l => has(cl, l)) || LETTERS[0];
+    if (!cl) cl = CLASSES.find(c => has(c)) || CLASSES[0]; if (!lettersOf(cl).includes(lt)) lt = lettersOf(cl).find(l => has(cl, l)) || lettersOf(cl)[0];
     sel = S.find(x => x.clasa === cl && x.lit === lt); title = `Clasa a ${cl}-a ${lt}`;
-    f = `<p class="kick">Clasa</p>${chips(CLASSES.map(c => [c, c]), cl, "c", c => has(c) ? "has" : "")}<p class="kick">Litera</p>${chips(LETTERS.map(l => [l, l]), lt, "l", l => has(cl, l) ? "has" : "off")}`;
+    f = `<p class="kick">Clasa</p>${chips(CLASSES.map(c => [c, c]), cl, "c", c => has(c) ? "has" : "")}<p class="kick">Litera</p>${chips(lettersOf(cl).map(l => [l, l]), lt, "l", l => has(cl, l) ? "has" : "off")}`;
   } else {
     const T = tea(), subs = ["Toate", ...new Set([...T].sort((a, b) => subIdx(a.materie) - subIdx(b.materie)).map(x => x.materie || "Alte"))], L = T.filter(x => sub === "Toate" || (x.materie || "Alte") === sub);
     if (!L.some(x => x.id === cur)) cur = L[0]?.id || ""; sel = L.find(x => x.id === cur); title = sel ? `${sel.nume} · ${sel.materie || ""}` : "";
@@ -65,7 +66,7 @@ ${D.map(([k], i) => `<div class="day" data-k="${k}"${i ? " hidden" : ""}>${BELLS
 };
 $("#ow").onclick = e => {
   const b = e.target.closest("button"); if (!b) return; const d = b.dataset;
-  if (d.t) tip = d.t; if (d.c) { cl = d.c; lt = LETTERS.find(l => stu().some(x => x.clasa === cl && x.lit === l)) || lt; } if (d.l) lt = d.l; if (d.s !== undefined) sub = d.s; if (d.n) cur = d.n;
+  if (d.t) tip = d.t; if (d.c) { cl = d.c; lt = lettersOf(cl).find(l => stu().some(x => x.clasa === cl && x.lit === l)) || lettersOf(cl)[0]; } if (d.l) lt = d.l; if (d.s !== undefined) sub = d.s; if (d.n) cur = d.n;
   if (d.di !== undefined) di = +d.di; if (d.t || d.c || d.l || d.s !== undefined || d.n || d.di !== undefined) draw();
 };
 /* ── Import din fișier (.xlsx / .docx / .csv): fișierul NU se salvează, doar orarele extrase ── */
