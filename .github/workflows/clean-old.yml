@@ -1,4 +1,5 @@
 # Se rulează O SINGURĂ DATĂ, după ce noul zip a fost dezarhivat: Actions → Curățare structură veche → Run workflow.
+# Șterge fișierele rămase din structurile vechi (paginile din rădăcină, manifestul și fișierele Prettier din rădăcină).
 name: Curățare structură veche
 on: workflow_dispatch
 permissions:
@@ -9,7 +10,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          test -f js/core/core.js || { echo "Noua structură nu e încă pe site. Oprire."; exit 1; }
+          test -f pages/orar.html && test -f js/core/core.js || { echo "Noua structură (pages/) nu e încă pe site. Oprire."; exit 1; }
+          # paginile care acum stau în pages/
+          for p in admin cantina consola galerie info lectii login mesaje orar profesori resurse teste; do git rm -q --ignore-unmatch "$p.html"; done
+          # manifestul s-a mutat în img/, fișierele Prettier au fost eliminate
+          git rm -q --ignore-unmatch manifest.webmanifest .prettierrc .prettierignore
+          # structurile mai vechi
           git rm -rq --ignore-unmatch ai functions firebase.json .firebaserc
           for f in admin ai cantina config core demo engine exam firebase galerie home lectii login orar pdf profesori resurse teste theme; do git rm -q --ignore-unmatch "js/$f.js"; done
           git config user.name "github-actions"
