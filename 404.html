@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ro">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Pagina nu a fost găsită · LT Ion Creangă</title>
+    <meta name="robots" content="noindex" />
+    <script>
+      // Adresele vechi (/resurse, /orar …) trimit automat la noile adrese din pages/
+      (function () {
+        var P = "admin cantina consola galerie info lectii login mesaje orar profesori resurse teste".split(" ");
+        var m = location.pathname.match(/^(.*\/)([a-z]+)(\.html)?\/?$/);
+        if (m && P.indexOf(m[2]) > -1) location.replace(m[1] + "pages/" + m[2] + location.search + location.hash);
+      })();
+    </script>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        font:
+          1.1rem/1.5 system-ui,
+          sans-serif;
+        background: #faf8f3;
+        color: #1a1612;
+      }
+      a {
+        color: #8a1c2b;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Pagina nu a fost găsită</h1>
+      <p><a id="h" href="./">Înapoi la pagina principală</a></p>
+    </main>
+    <script>
+      // pe GitHub Pages site-ul poate sta într-un subfolder (/nume-repo/)
+      var b = location.pathname.match(/^\/[^/]+\//);
+      if (b && location.hostname.slice(-10) === ".github.io") document.getElementById("h").href = b[0];
+    </script>
+  </body>
+</html>

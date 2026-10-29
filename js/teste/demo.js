@@ -1,8 +1,31 @@
 // Lecții de exemplu (texte scrise pentru demonstrație, nu sunt copiate din manuale).
-const CH = { fizica: "Capitolul 1. Fenomene luminoase", matematica: "Capitolul 1. Geometria plană", chimie: "Capitolul 1. Structura materiei", biologie: "Capitolul 1. Organizarea vieții", istorie: "Capitolul 1. Epoca modernă", geografie: "Capitolul 1. Pământul în Univers", romana: "Capitolul 1. Părțile de vorbire", informatica: "Capitolul 1. Bazele programării" };
-const L = (id, materie, clasa, tema, text) => ({ id: "demo-" + id, materie, clasa, capitol: CH[id] + " (exemplu)", pag: 1, tema: tema + " (exemplu)", demo: 1, text });
+const CH = {
+  fizica: "Capitolul 1. Fenomene luminoase",
+  matematica: "Capitolul 1. Geometria plană",
+  chimie: "Capitolul 1. Structura materiei",
+  biologie: "Capitolul 1. Organizarea vieții",
+  istorie: "Capitolul 1. Epoca modernă",
+  geografie: "Capitolul 1. Pământul în Univers",
+  romana: "Capitolul 1. Părțile de vorbire",
+  informatica: "Capitolul 1. Bazele programării",
+};
+const L = (id, materie, clasa, tema, text) => ({
+  id: "demo-" + id,
+  materie,
+  clasa,
+  capitol: CH[id] + " (exemplu)",
+  pag: 1,
+  tema: tema + " (exemplu)",
+  demo: 1,
+  text,
+});
 export const DEMO = [
-  L("fizica", "Fizica", "IX", "Optica geometrică", `# Optica geometrică
+  L(
+    "fizica",
+    "Fizica",
+    "IX",
+    "Optica geometrică",
+    `# Optica geometrică
 Optica geometrică studiază fenomenele luminoase folosind noțiunea de rază de lumină.
 Raza de lumină este o dreaptă orientată care indică direcția și sensul de propagare a luminii.
 Un mediu transparent este mediul prin care lumina se propagă fără a fi absorbită sau împrăștiată în mod semnificativ.
@@ -32,8 +55,14 @@ Mărirea liniară transversală este raportul dintre înălțimea imaginii și �
 Mărire liniară: β = y2 / y1
 @problema Un obiect se află la {x:10-40:5} cm de o oglindă plană. La ce distanță de obiect se află imaginea? => 2*x | cm
 @problema O lentilă are distanța focală f = {f:0.1-0.5:0.05} m. Calculează convergența lentilei. => 1/f | dioptrii
-@problema Viteza luminii într-un mediu este {v:150000-250000:10000} km/s. Calculează indicele de refracție al mediului (c = 300000 km/s). => 300000/v | fără unitate`),
-  L("matematica", "Matematica", "VIII", "Teorema lui Pitagora", `# Teorema lui Pitagora
+@problema Viteza luminii într-un mediu este {v:150000-250000:10000} km/s. Calculează indicele de refracție al mediului (c = 300000 km/s). => 300000/v | fără unitate`
+  ),
+  L(
+    "matematica",
+    "Matematica",
+    "VIII",
+    "Teorema lui Pitagora",
+    `# Teorema lui Pitagora
 Triunghiul dreptunghic este triunghiul care are un unghi drept.
 Ipotenuza este latura opusă unghiului drept și este cea mai lungă latură a triunghiului dreptunghic.
 Catetele sunt laturile care formează unghiul drept al triunghiului dreptunghic.
@@ -49,8 +78,14 @@ Perimetrul pătratului: P = 4 · l
 @problema Un triunghi dreptunghic are catetele de {a:3-12} cm și {b:4-16} cm. Calculează lungimea ipotenuzei. => sqrt(a^2+b^2) | cm
 @problema Un dreptunghi are lungimea {L:5-20} cm și lățimea {l:2-9} cm. Calculează aria dreptunghiului. => L*l | cm²
 @problema Un pătrat are latura de {l:3-15} cm. Calculează perimetrul pătratului. => 4*l | cm
-@problema Un triunghi are baza de {b:4-20} cm și înălțimea de {h:2-12} cm. Calculează aria triunghiului. => b*h/2 | cm²`),
-  L("chimie", "Chimia", "VII", "Atomul", `# Atomul
+@problema Un triunghi are baza de {b:4-20} cm și înălțimea de {h:2-12} cm. Calculează aria triunghiului. => b*h/2 | cm²`
+  ),
+  L(
+    "chimie",
+    "Chimia",
+    "VII",
+    "Atomul",
+    `# Atomul
 Atomul este particula de bază din care sunt formate substanțele și care păstrează proprietățile elementului chimic.
 Nucleul este partea centrală a atomului și conține protoni și neutroni.
 Protonii sunt particulele cu sarcină electrică pozitivă din nucleul atomului.
@@ -63,8 +98,14 @@ Un atom este neutru din punct de vedere electric deoarece numărul de protoni es
 Izotopii sunt atomii aceluiași element chimic care au număr diferit de neutroni.
 Numărul de masă: A = Z + N
 @problema Un atom are Z = {z:3-20} protoni și {n:3-22} neutroni. Calculează numărul de masă A. => z+n | fără unitate
-@problema Un atom are numărul de masă A = {a:20-60} și numărul atomic Z = {z:8-18}. Calculează numărul de neutroni. => a-z | fără unitate`),
-  L("biologie", "Biologie", "VI", "Celula", `# Celula
+@problema Un atom are numărul de masă A = {a:20-60} și numărul atomic Z = {z:8-18}. Calculează numărul de neutroni. => a-z | fără unitate`
+  ),
+  L(
+    "biologie",
+    "Biologie",
+    "VI",
+    "Celula",
+    `# Celula
 Celula este unitatea structurală și funcțională de bază a organismelor vii.
 Membrana celulară este învelișul care delimitează celula și controlează schimbul de substanțe cu mediul.
 Nucleul este organitul care conține materialul genetic și coordonează activitatea celulei.
@@ -77,8 +118,14 @@ Citoplasma este mediul semifluid în care se află organitele celulei.
 Fotosinteza este procesul prin care plantele produc substanțe organice folosind lumina solară.
 Respirația celulară este procesul prin care celulele eliberează energia din substanțele organice.
 Țesutul este un grup de celule asemănătoare care îndeplinesc aceeași funcție.
-Organismele unicelulare sunt formate dintr-o singură celulă.`),
-  L("istorie", "Istoria", "VIII", "Unirea Principatelor Române", `# Unirea Principatelor Române
+Organismele unicelulare sunt formate dintr-o singură celulă.`
+  ),
+  L(
+    "istorie",
+    "Istoria",
+    "VIII",
+    "Unirea Principatelor Române",
+    `# Unirea Principatelor Române
 Unirea Principatelor Române a avut loc în anul 1859, prin dubla alegere a lui Alexandru Ioan Cuza.
 Alexandru Ioan Cuza a fost ales domn al Moldovei la 5 ianuarie 1859.
 Alexandru Ioan Cuza a fost ales domn al Țării Românești la 24 ianuarie 1859.
@@ -91,8 +138,14 @@ Alexandru Ioan Cuza a fost obligat să abdice la 11 februarie 1866.
 După abdicarea lui Cuza, domn al României a devenit Carol I de Hohenzollern.
 Prima Constituție modernă a României a fost adoptată în anul 1866.
 Independența de stat a României a fost proclamată la 9 mai 1877.
-România a devenit regat în anul 1881, iar Carol I a fost încoronat rege.`),
-  L("geografie", "Geografie", "V", "Planeta Pământ", `# Planeta Pământ
+România a devenit regat în anul 1881, iar Carol I a fost încoronat rege.`
+  ),
+  L(
+    "geografie",
+    "Geografie",
+    "V",
+    "Planeta Pământ",
+    `# Planeta Pământ
 Pământul este planeta de pe care observăm Universul și singura planetă cunoscută pe care există viață.
 Forma Pământului este aproape sferică, puțin turtită la poli.
 Globul geografic este modelul miniatural al Pământului.
@@ -105,8 +158,14 @@ Revoluția Pământului este mișcarea Pământului în jurul Soarelui și durea
 Succesiunea zilei și a nopții este o consecință a mișcării de rotație.
 Succesiunea anotimpurilor este o consecință a mișcării de revoluție și a înclinării axei Pământului.
 Pe Pământ există șapte continente: Asia, Africa, America de Nord, America de Sud, Antarctida, Europa și Australia.
-Oceanul Pacific este cel mai mare ocean de pe Pământ.`),
-  L("romana", "Limba română", "V", "Substantivul", `# Substantivul
+Oceanul Pacific este cel mai mare ocean de pe Pământ.`
+  ),
+  L(
+    "romana",
+    "Limba română",
+    "V",
+    "Substantivul",
+    `# Substantivul
 Substantivul este partea de vorbire care denumește ființe, lucruri, fenomene ale naturii și noțiuni abstracte.
 Substantivul comun este substantivul care denumește ființe, lucruri sau fenomene dintr-o categorie.
 Substantivul propriu este substantivul care denumește o singură ființă sau un singur lucru din categoria respectivă și se scrie cu inițială mare.
@@ -117,8 +176,14 @@ Pluralul este forma substantivului care denumește mai multe obiecte sau mai mul
 Cazurile substantivului sunt nominativ, acuzativ, genitiv, dativ și vocativ.
 Articolul este partea de vorbire care însoțește substantivul și arată dacă acesta este cunoscut sau necunoscut.
 Vocativul este cazul care exprimă adresarea directă către cineva sau ceva.
-Substantivul are în propoziție funcții sintactice precum subiect, nume predicativ, atribut și complement.`),
-  L("informatica", "Informatica", "VII", "Algoritmul", `# Algoritmul
+Substantivul are în propoziție funcții sintactice precum subiect, nume predicativ, atribut și complement.`
+  ),
+  L(
+    "informatica",
+    "Informatica",
+    "VII",
+    "Algoritmul",
+    `# Algoritmul
 Algoritmul este o succesiune finită de pași bine definiți care duc la rezolvarea unei probleme.
 Datele de intrare sunt informațiile pe care algoritmul le primește la început.
 Datele de ieșire sunt rezultatele pe care algoritmul le oferă la final.
@@ -129,5 +194,6 @@ Programul este un algoritm scris într-un limbaj de programare.
 Structura liniară este structura în care instrucțiunile se execută una după alta, în ordinea în care sunt scrise.
 Structura alternativă este structura în care execuția depinde de îndeplinirea unei condiții.
 Structura repetitivă este structura în care un grup de instrucțiuni se execută de mai multe ori.
-Un algoritm trebuie să fie corect, clar și să se termine după un număr finit de pași.`),
+Un algoritm trebuie să fie corect, clar și să se termine după un număr finit de pași.`
+  ),
 ];

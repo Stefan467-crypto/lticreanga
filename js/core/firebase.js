@@ -7,7 +7,8 @@ export const firebaseConfig = {
   projectId: "ltic-1cbec",
   storageBucket: "ltic-1cbec.firebasestorage.app",
   messagingSenderId: "588253538861",
-  appId: "1:588253538861:web:f4dedfa047708c55b0a6a4"
+  appId: "1:588253538861:web:f4dedfa047708c55b0a6a4",
 };
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app), db = getFirestore(app);
+export const auth = getAuth(app),
+  db = getFirestore(app);

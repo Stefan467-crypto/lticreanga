@@ -1,15 +1,97 @@
-import { $, esc, toast, whenRole, modal, can, user, upload, safeUrl, db, collection, getDocs, addDoc, deleteDoc, doc } from "../core/core.js";
-let G = [], cur = 0, lb = null;
-const draw = () => { $("#gl").innerHTML = G.map((g, i) => `<figure class="ph" data-i="${i}" tabindex="0"><img loading="lazy" alt="${esc(g.titlu || "Fotografie")}" src="${esc(safeUrl(g.url.replace("/upload/", "/upload/f_auto,q_auto,w_700/")))}">${g.titlu ? `<figcaption>${esc(g.titlu)}</figcaption>` : ""}</figure>`).join("") || '<p class="tag mid">Nu sunt fotografii încă.</p>'; };
-const load = async () => { G = (await getDocs(collection(db, "galerie"))).docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.ts - a.ts); draw(); };
-const show = i => {
-  cur = (i + G.length) % G.length; const g = G[cur];
-  if (!lb) { lb = document.body.appendChild(document.createElement("dialog")); lb.className = "lbx"; lb.onclick = e => { if (e.target === lb || e.target.dataset.x) lb.close(); }; lb.onclose = () => { lb.remove(); lb = null; }; lb.addEventListener("keydown", e => { if (e.key === "ArrowRight") show(cur + 1); if (e.key === "ArrowLeft") show(cur - 1); }); let sx = 0; lb.addEventListener("touchstart", e => sx = e.touches[0].clientX, { passive: true }); lb.addEventListener("touchend", e => { const dx = e.changedTouches[0].clientX - sx; if (Math.abs(dx) > 50) show(cur + (dx < 0 ? 1 : -1)); }); lb.showModal(); }
-  lb.innerHTML = `<button class="ib x" data-x="1" aria-label="Închide">×</button><button class="nv l" data-n="-1" aria-label="Anterioara">‹</button><img alt="" src="${esc(safeUrl(g.url.replace("/upload/", "/upload/f_auto,q_auto,w_1600/")))}"><button class="nv r" data-n="1" aria-label="Următoarea">›</button><div class="cap">${esc(g.titlu || "")}<small>${cur + 1} / ${G.length}</small>${can("anunturi") && (can("admin") || g.uid === user?.uid) ? `<button class="btn o s" data-del="${g.id}">Șterge</button>` : ""}</div>`;
-  lb.querySelectorAll("[data-n]").forEach(b => b.onclick = e => { e.stopPropagation(); show(cur + +b.dataset.n); });
-  const dl = lb.querySelector("[data-del]"); if (dl) dl.onclick = async () => { if (confirm("Ștergi fotografia?")) { await deleteDoc(doc(db, "galerie", dl.dataset.del)); lb.close(); load(); } };
+import {
+  $,
+  esc,
+  toast,
+  whenRole,
+  modal,
+  can,
+  user,
+  upload,
+  safeUrl,
+  db,
+  collection,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  doc,
+} from "../core/core.js";
+let G = [],
+  cur = 0,
+  lb = null;
+const draw = () => {
+  $("#gl").innerHTML =
+    G.map(
+      (g, i) =>
+        `<figure class="ph" data-i="${i}" tabindex="0"><img loading="lazy" alt="${esc(g.titlu || "Fotografie")}" src="${esc(safeUrl(g.url.replace("/upload/", "/upload/f_auto,q_auto,w_700/")))}">${g.titlu ? `<figcaption>${esc(g.titlu)}</figcaption>` : ""}</figure>`
+    ).join("") || '<p class="tag mid">Nu sunt fotografii încă.</p>';
 };
-$("#gl").onclick = e => { const f = e.target.closest(".ph"); if (f) show(+f.dataset.i); };
-$("#gl").onkeydown = e => { if (e.key === "Enter" && e.target.dataset.i) show(+e.target.dataset.i); };
-$("#addG").onclick = () => modal("Fotografii noi", '<label>Titlu (opțional, pentru toate)<input name="t"></label><label>Fotografii (poți alege mai multe)<input name="f" type="file" accept="image/*" multiple required></label>', async f => { const E = f.elements; for (const file of E.f.files) { const url = await upload(file); await addDoc(collection(db, "galerie"), { url, titlu: E.t.value.trim(), uid: user.uid, ts: Date.now() }); } toast("Fotografii adăugate"); load(); }, "Încarcă");
-whenRole(() => load().catch(() => $("#gl").innerHTML = '<p class="tag mid">Galeria nu poate fi încărcată.</p>'));
+const load = async () => {
+  G = (await getDocs(collection(db, "galerie"))).docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.ts - a.ts);
+  draw();
+};
+const show = i => {
+  cur = (i + G.length) % G.length;
+  const g = G[cur];
+  if (!lb) {
+    lb = document.body.appendChild(document.createElement("dialog"));
+    lb.className = "lbx";
+    lb.onclick = e => {
+      if (e.target === lb || e.target.dataset.x) lb.close();
+    };
+    lb.onclose = () => {
+      lb.remove();
+      lb = null;
+    };
+    lb.addEventListener("keydown", e => {
+      if (e.key === "ArrowRight") show(cur + 1);
+      if (e.key === "ArrowLeft") show(cur - 1);
+    });
+    let sx = 0;
+    lb.addEventListener("touchstart", e => (sx = e.touches[0].clientX), { passive: true });
+    lb.addEventListener("touchend", e => {
+      const dx = e.changedTouches[0].clientX - sx;
+      if (Math.abs(dx) > 50) show(cur + (dx < 0 ? 1 : -1));
+    });
+    lb.showModal();
+  }
+  lb.innerHTML = `<button class="ib x" data-x="1" aria-label="Închide">×</button><button class="nv l" data-n="-1" aria-label="Anterioara">‹</button><img alt="" src="${esc(safeUrl(g.url.replace("/upload/", "/upload/f_auto,q_auto,w_1600/")))}"><button class="nv r" data-n="1" aria-label="Următoarea">›</button><div class="cap">${esc(g.titlu || "")}<small>${cur + 1} / ${G.length}</small>${can("anunturi") && (can("admin") || g.uid === user?.uid) ? `<button class="btn o s" data-del="${g.id}">Șterge</button>` : ""}</div>`;
+  lb.querySelectorAll("[data-n]").forEach(
+    b =>
+      (b.onclick = e => {
+        e.stopPropagation();
+        show(cur + +b.dataset.n);
+      })
+  );
+  const dl = lb.querySelector("[data-del]");
+  if (dl)
+    dl.onclick = async () => {
+      if (confirm("Ștergi fotografia?")) {
+        await deleteDoc(doc(db, "galerie", dl.dataset.del));
+        lb.close();
+        load();
+      }
+    };
+};
+$("#gl").onclick = e => {
+  const f = e.target.closest(".ph");
+  if (f) show(+f.dataset.i);
+};
+$("#gl").onkeydown = e => {
+  if (e.key === "Enter" && e.target.dataset.i) show(+e.target.dataset.i);
+};
+$("#addG").onclick = () =>
+  modal(
+    "Fotografii noi",
+    '<label>Titlu (opțional, pentru toate)<input name="t"></label><label>Fotografii (poți alege mai multe)<input name="f" type="file" accept="image/*" multiple required></label>',
+    async f => {
+      const E = f.elements;
+      for (const file of E.f.files) {
+        const url = await upload(file);
+        await addDoc(collection(db, "galerie"), { url, titlu: E.t.value.trim(), uid: user.uid, ts: Date.now() });
+      }
+      toast("Fotografii adăugate");
+      load();
+    },
+    "Încarcă"
+  );
+whenRole(() => load().catch(() => ($("#gl").innerHTML = '<p class="tag mid">Galeria nu poate fi încărcată.</p>')));

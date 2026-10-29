@@ -27,6 +27,19 @@ service cloud.firestore {
     match /lectii_text/{id} { allow read: if true; allow write: if prof(); }
     match /meniu/{id} { allow read: if true; allow write: if ce(); }
 
+    // Jurnalul de activitate (consola): orice cont autentificat scrie doar linii pe numele lui; citește și golește doar administratorul.
+    match /jurnal/{id} {
+      allow create: if signed()
+        && request.resource.data.keys().hasOnly(['uid', 'nume', 'rol', 'act', 'col', 'n', 'text', 'pagina', 'ts'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.text is string && request.resource.data.text.size() <= 300
+        && request.resource.data.ts is int
+        && request.resource.data.ts > request.time.toMillis() - 600000
+        && request.resource.data.ts < request.time.toMillis() + 600000;
+      allow read, delete: if admin();
+      allow update: if false;
+    }
+
     match /mesaje/{id} {
       allow create: if request.resource.data.keys().hasOnly(['nume', 'mesaj', 'toUid', 'toNume', 'ts'])
         && request.resource.data.nume is string && request.resource.data.nume.size() > 1 && request.resource.data.nume.size() <= 80
